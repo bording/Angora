@@ -12,6 +12,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 EndProject
 Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "RabbitMQClient", "src\RabbitMQClient\RabbitMQClient.xproj", "{E8609CF9-82CC-4CC1-94D3-A002188C0284}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{C1D7C356-4377-4B2B-828F-A3FDCD185005}"
+EndProject
+Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "Sample", "samples\Sample\Sample.xproj", "{7CF23DAB-4721-4C7E-AE88-EA599D90E03B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -22,11 +26,16 @@ Global
 		{E8609CF9-82CC-4CC1-94D3-A002188C0284}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E8609CF9-82CC-4CC1-94D3-A002188C0284}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E8609CF9-82CC-4CC1-94D3-A002188C0284}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7CF23DAB-4721-4C7E-AE88-EA599D90E03B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7CF23DAB-4721-4C7E-AE88-EA599D90E03B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7CF23DAB-4721-4C7E-AE88-EA599D90E03B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7CF23DAB-4721-4C7E-AE88-EA599D90E03B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{E8609CF9-82CC-4CC1-94D3-A002188C0284} = {F7982BD4-6042-4F44-B572-F6B2003C4D79}
+		{7CF23DAB-4721-4C7E-AE88-EA599D90E03B} = {C1D7C356-4377-4B2B-828F-A3FDCD185005}
 	EndGlobalSection
 EndGlobal

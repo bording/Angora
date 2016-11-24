@@ -2,7 +2,10 @@
   "version": "1.0.0-*",
 
   "dependencies": {
-    "NETStandard.Library": "1.6.0"
+    "NETStandard.Library": "1.6.2-*",
+    "System.IO.Pipelines": "0.1.0-*",
+    "System.IO.Pipelines.Networking.Sockets": "0.1.0-*",
+    "System.IO.Pipelines.Text.Primitives": "0.1.0-*"
   },
 
   "frameworks": {
