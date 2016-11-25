@@ -13,6 +13,8 @@ namespace RabbitMQClient
     public class Connection
     {
         static readonly byte[] protocolHeader = { 0x41, 0x4d, 0x51, 0x50, 0x00, 0x00, 0x09, 0x01 };
+
+        const byte reserved = 0x00;
         const ushort connectionChannelNumber = 0;
 
         SocketConnection connection;
@@ -20,12 +22,14 @@ namespace RabbitMQClient
         readonly string hostName;
         readonly string userName;
         readonly string password;
+        readonly string virtualHost;
 
-        internal Connection(string hostName, string userName, string password)
+        internal Connection(string hostName, string userName, string password, string virtualHost)
         {
             this.hostName = hostName;
             this.userName = userName;
             this.password = password;
+            this.virtualHost = virtualHost;
         }
 
         internal async Task Connect()
@@ -38,9 +42,13 @@ namespace RabbitMQClient
 
             Task.Run(() => ReadLoop()).Ignore();
 
-            var buffer = connection.Output.Alloc();
-            buffer.Write(protocolHeader);
-            await buffer.FlushAsync();
+            var startResult = await Send_Connection_ProtocolHeader();
+            var tuneResult = await Send_Connection_StartOk();
+
+            Task.Run(() => SendHeartbeats(tuneResult.Heartbeat)).Ignore();
+
+            await Send_Connection_TuneOk(tuneResult.ChannelMax, tuneResult.FrameMax, tuneResult.Heartbeat);
+            var openResult = await Send_Connection_Open();
         }
 
         async Task ReadLoop()
@@ -67,7 +75,7 @@ namespace RabbitMQClient
                 switch (frameType)
                 {
                     case FrameType.Method:
-                        await ParseMethodFrame(channelNumber, payload);
+                        ParseMethodFrame(channelNumber, payload);
                         break;
                 }
 
@@ -75,68 +83,138 @@ namespace RabbitMQClient
             }
         }
 
-        Task ParseMethodFrame(ushort channelNumber, ReadableBuffer payload)
+        async Task SendHeartbeats(ushort interval)
+        {
+            await Task.Delay(200);
+
+            while (true)
+            {
+                var buffer = connection.Output.Alloc();
+
+                uint length = 0;
+
+                buffer.WriteBigEndian(FrameType.Heartbeat);
+                buffer.WriteBigEndian(connectionChannelNumber);
+                buffer.WriteBigEndian(length);
+                buffer.WriteBigEndian(FrameEnd);
+
+                await buffer.FlushAsync();
+
+                await Task.Delay(TimeSpan.FromSeconds(interval));
+            }
+        }
+
+        void ParseMethodFrame(ushort channelNumber, ReadableBuffer payload)
         {
             var classId = payload.Slice(0, 2).ReadBigEndian<ushort>();
             var methodId = payload.Slice(2, 2).ReadBigEndian<ushort>();
             var arguments = payload.Slice(4);
 
-            var task = Task.CompletedTask;
-
             switch (classId)
             {
                 case Command.Connection.ClassId:
-                    task = ParseConnectionMethod(channelNumber, methodId, arguments);
+                    ParseConnectionMethod(channelNumber, methodId, arguments);
                     break;
 
                 case Command.Channel.ClassId:
-                    task = ParseChannelMethod(channelNumber, methodId, arguments);
+                    ParseChannelMethod(channelNumber, methodId, arguments);
                     break;
             }
-
-            return task;
         }
 
-        Task ParseConnectionMethod(ushort channelNumber, ushort methodId, ReadableBuffer arguments)
+        void ParseConnectionMethod(ushort channelNumber, ushort methodId, ReadableBuffer arguments)
         {
-            var task = Task.CompletedTask;
-
             switch (methodId)
             {
                 case Command.Connection.Start:
-
-                    var versionMajor = arguments.Slice(0, 1).ReadBigEndian<byte>();
-                    var versionMinor = arguments.Slice(1, 1).ReadBigEndian<byte>();
-
-                    var serverPropertiesLength = arguments.Slice(2, 4).ReadBigEndian<uint>();
-                    var serverProperties = arguments.Slice(6, (int)serverPropertiesLength);
-
-                    var mechanismsStart = 6 + (int)serverPropertiesLength;
-                    var mechanismsLength = arguments.Slice(mechanismsStart, 4).ReadBigEndian<uint>();
-                    var mechaninisms = arguments.Slice(mechanismsStart + 4, (int)mechanismsLength);
-
-                    var localesStart = mechanismsStart + 4 + (int)mechanismsLength;
-                    var localesLength = arguments.Slice(localesStart, 4).ReadBigEndian<uint>();
-                    var locales = arguments.Slice(localesStart + 4, (int)localesLength);
-
-                    task = Send_Connection_StartOk();
+                    Handle_Connection_Start(channelNumber, arguments);
                     break;
 
                 case Command.Connection.Tune:
+                    Handle_Connection_Tune(channelNumber, arguments);
+                    break;
 
-                    var channelMax = arguments.Slice(0, 2).ReadBigEndian<ushort>();
-                    var frameMax = arguments.Slice(2, 4).ReadBigEndian<uint>();
-                    var heartbeat = arguments.Slice(6, 2).ReadBigEndian<ushort>();
-
-                    task = Send_Connection_TuneOk(channelMax, frameMax, heartbeat);
+                case Command.Connection.OpenOk:
+                    Handle_Connection_OpenOk(channelNumber, arguments);
                     break;
             }
-
-            return task;
         }
 
-        Task Send_Connection_StartOk()
+        // Handle methods
+
+        struct Connection_StartResult
         {
+            public byte VersionMajor;
+            public byte VersionMinor;
+            public ReadableBuffer ServerProperties;
+            public ReadableBuffer Mechanisms;
+            public ReadableBuffer Locales;
+        }
+
+        void Handle_Connection_Start(ushort channelNumber, ReadableBuffer arguments)
+        {
+            var result = new Connection_StartResult();
+
+            result.VersionMajor = arguments.Slice(0, 1).ReadBigEndian<byte>();
+            result.VersionMinor = arguments.Slice(1, 1).ReadBigEndian<byte>();
+
+            var serverPropertiesLength = arguments.Slice(2, 4).ReadBigEndian<uint>();
+            result.ServerProperties = arguments.Slice(6, (int)serverPropertiesLength);
+
+            var mechanismsStart = 6 + (int)serverPropertiesLength;
+            var mechanismsLength = arguments.Slice(mechanismsStart, 4).ReadBigEndian<uint>();
+            result.Mechanisms = arguments.Slice(mechanismsStart + 4, (int)mechanismsLength);
+
+            var localesStart = mechanismsStart + 4 + (int)mechanismsLength;
+            var localesLength = arguments.Slice(localesStart, 4).ReadBigEndian<uint>();
+            result.Locales = arguments.Slice(localesStart + 4, (int)localesLength);
+
+            connection_ProtocolHeader.SetResult(result);
+        }
+
+        struct Connection_TuneResult
+        {
+            public ushort ChannelMax;
+            public uint FrameMax;
+            public ushort Heartbeat;
+        }
+
+        void Handle_Connection_Tune(ushort channelNumber, ReadableBuffer arguments)
+        {
+            var result = new Connection_TuneResult();
+
+            result.ChannelMax = arguments.Slice(0, 2).ReadBigEndian<ushort>();
+            result.FrameMax = arguments.Slice(2, 4).ReadBigEndian<uint>();
+            result.Heartbeat = arguments.Slice(6, 2).ReadBigEndian<ushort>();
+
+            connection_StartOk.SetResult(result);
+        }
+
+        void Handle_Connection_OpenOk(ushort channelNumber, ReadableBuffer arguments)
+        {
+            connection_OpenOk.SetResult(true);
+        }
+
+        //Send methods
+
+        TaskCompletionSource<Connection_StartResult> connection_ProtocolHeader;
+        Task<Connection_StartResult> Send_Connection_ProtocolHeader()
+        {
+            connection_ProtocolHeader = new TaskCompletionSource<Connection_StartResult>();
+
+            var buffer = connection.Output.Alloc();
+            buffer.Write(protocolHeader);
+
+            buffer.FlushAsync();
+
+            return connection_ProtocolHeader.Task;
+        }
+
+        TaskCompletionSource<Connection_TuneResult> connection_StartOk;
+        Task<Connection_TuneResult> Send_Connection_StartOk()
+        {
+            connection_StartOk = new TaskCompletionSource<Connection_TuneResult>();
+
             var buffer = connection.Output.Alloc();
 
             var clientProperties = new byte[0];
@@ -168,7 +246,9 @@ namespace RabbitMQClient
             buffer.Write(locale);
             buffer.WriteBigEndian(FrameEnd);
 
-            return buffer.FlushAsync();
+            buffer.FlushAsync();
+
+            return connection_StartOk.Task;
         }
 
         Task Send_Connection_TuneOk(ushort channelMax, uint frameMax, ushort heartbeat)
@@ -188,6 +268,34 @@ namespace RabbitMQClient
             buffer.WriteBigEndian(FrameEnd);
 
             return buffer.FlushAsync();
+        }
+
+        TaskCompletionSource<bool> connection_OpenOk;
+        Task<bool> Send_Connection_Open()
+        {
+            connection_OpenOk = new TaskCompletionSource<bool>();
+
+            var buffer = connection.Output.Alloc();
+
+            var virtualHostBytes = Encoding.UTF8.GetBytes(virtualHost);
+            var virtualHostLength = (byte)virtualHostBytes.Length;
+
+            uint payloadSize = (uint)2 + 2 + 1 + virtualHostLength + 1 + 1;
+
+            buffer.WriteBigEndian(FrameType.Method);
+            buffer.WriteBigEndian(connectionChannelNumber);
+            buffer.WriteBigEndian(payloadSize);
+            buffer.WriteBigEndian(Command.Connection.ClassId);
+            buffer.WriteBigEndian(Command.Connection.Open);
+            buffer.WriteBigEndian(virtualHostLength);
+            buffer.Write(virtualHostBytes);
+            buffer.WriteBigEndian(reserved);
+            buffer.WriteBigEndian(reserved);
+            buffer.WriteBigEndian(FrameEnd);
+
+            buffer.FlushAsync();
+
+            return connection_OpenOk.Task;
         }
 
         Task ParseChannelMethod(ushort channelNumber, ushort methodId, ReadableBuffer arguments)
