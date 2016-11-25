@@ -32,6 +32,17 @@ namespace RabbitMQClient
             this.virtualHost = virtualHost;
         }
 
+        public async Task Close()
+        {
+            await Send_Connection_Close();
+
+            connection.Input.Complete();
+            connection.Output.Complete();
+
+            connection.Dispose();
+        }
+
+
         internal async Task Connect()
         {
             var addresses = await Dns.GetHostAddressesAsync(hostName);
@@ -137,6 +148,10 @@ namespace RabbitMQClient
                 case Command.Connection.OpenOk:
                     Handle_Connection_OpenOk(channelNumber, arguments);
                     break;
+
+                case Command.Connection.CloseOk:
+                    Handle_Connection_CloseOk(channelNumber, arguments);
+                    break;
             }
         }
 
@@ -193,6 +208,11 @@ namespace RabbitMQClient
         void Handle_Connection_OpenOk(ushort channelNumber, ReadableBuffer arguments)
         {
             connection_OpenOk.SetResult(true);
+        }
+
+        void Handle_Connection_CloseOk(ushort channelNumber, ReadableBuffer arguments)
+        {
+            connection_CloseOk.SetResult(true);
         }
 
         //Send methods
@@ -292,11 +312,42 @@ namespace RabbitMQClient
             buffer.WriteBigEndian(reserved);
             buffer.WriteBigEndian(reserved);
             buffer.WriteBigEndian(FrameEnd);
-
             buffer.FlushAsync();
 
             return connection_OpenOk.Task;
         }
+
+        TaskCompletionSource<bool> connection_CloseOk;
+        Task Send_Connection_Close()
+        {
+            connection_CloseOk = new TaskCompletionSource<bool>();
+
+            var buffer = connection.Output.Alloc();
+
+            var replyText = Encoding.UTF8.GetBytes("Connection close forced");
+            var replyTextLength = (byte)replyText.Length;
+
+            ushort emptyError = 0;
+
+            uint payloadSize = (uint)2 + 2 + 2 + 1 + replyTextLength + 2 + 2;
+
+            buffer.WriteBigEndian(FrameType.Method);
+            buffer.WriteBigEndian(connectionChannelNumber);
+            buffer.WriteBigEndian(payloadSize);
+            buffer.WriteBigEndian(Command.Connection.ClassId);
+            buffer.WriteBigEndian(Command.Connection.Close);
+            buffer.WriteBigEndian(ConnectionReplyCode.Success);
+            buffer.WriteBigEndian(replyTextLength);
+            buffer.Write(replyText);
+            buffer.WriteBigEndian(emptyError);
+            buffer.WriteBigEndian(emptyError);
+            buffer.WriteBigEndian(FrameEnd);
+
+            buffer.FlushAsync();
+
+            return connection_CloseOk.Task;
+        }
+
 
         Task ParseChannelMethod(ushort channelNumber, ushort methodId, ReadableBuffer arguments)
         {

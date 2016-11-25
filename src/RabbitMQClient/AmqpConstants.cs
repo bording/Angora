@@ -17,6 +17,31 @@ namespace RabbitMQClient
             public const byte Heartbeat = 8;
         }
 
+        public static class ConnectionReplyCode
+        {
+            public const ushort Success = 200;
+            public const ushort ConnectionForced = 320;
+            public const ushort InvalidPath = 402;
+            public const ushort FrameError = 501;
+            public const ushort SyntaxError = 502;
+            public const ushort CommandInvalid = 503;
+            public const ushort ChannelError = 504;
+            public const ushort UnexpectedFrame = 505;
+            public const ushort ResourceError = 506;
+            public const ushort NotAllowed = 530;
+            public const ushort NotImplemented = 540;
+            public const ushort InternalError = 541;
+        }
+
+        public static class ChannelReplyCode
+        {
+            public const ushort Success = 200;
+            public const ushort AccessRefused = 403;
+            public const ushort NotFound = 404;
+            public const ushort ResourceLocked = 405;
+            public const ushort PreconditionFailed = 406;
+        }
+
         public static class Command
         {
             public static class Connection
