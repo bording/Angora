@@ -81,7 +81,7 @@ namespace RabbitMQClient
                 var payload = buffer.Slice(7, (int)payloadSize);
 
                 var frameEnd = buffer.Slice((int)payloadSize + 7, 1).ReadBigEndian<byte>();
-                //validate frame end
+                //TODO validate frame end
 
                 switch (frameType)
                 {
@@ -133,6 +133,8 @@ namespace RabbitMQClient
             }
         }
 
+        // Connection
+
         void ParseConnectionMethod(ushort channelNumber, ushort methodId, ReadableBuffer arguments)
         {
             switch (methodId)
@@ -155,7 +157,7 @@ namespace RabbitMQClient
             }
         }
 
-        // Handle methods
+        // Connection Handle methods
 
         struct Connection_StartResult
         {
@@ -215,7 +217,7 @@ namespace RabbitMQClient
             connection_CloseOk.SetResult(true);
         }
 
-        //Send methods
+        //Connection Send methods
 
         TaskCompletionSource<Connection_StartResult> connection_ProtocolHeader;
         Task<Connection_StartResult> Send_Connection_ProtocolHeader()
@@ -348,10 +350,94 @@ namespace RabbitMQClient
             return connection_CloseOk.Task;
         }
 
+        // Channel
 
-        Task ParseChannelMethod(ushort channelNumber, ushort methodId, ReadableBuffer arguments)
+        void ParseChannelMethod(ushort channelNumber, ushort methodId, ReadableBuffer arguments)
         {
-            return Task.CompletedTask;
+            switch(methodId)
+            {
+                case Command.Channel.OpenOk:
+                    Handle_Channel_OpenOk(channelNumber, arguments);
+                    break;
+            }
+        }
+
+        //  Channel Handle methods
+
+        void Handle_Channel_OpenOk(ushort channelNumber, ReadableBuffer arguments)
+        {
+            channel_OpenOk.SetResult(true);
+        }
+
+        // Channel Send methods
+
+        ushort nextChannelNumber;
+
+        TaskCompletionSource<bool> channel_OpenOk;
+        public Task Send_Channel_Open()
+        {
+            channel_OpenOk = new TaskCompletionSource<bool>();
+
+            var buffer = connection.Output.Alloc();
+
+            uint payloadSize = (uint)2 + 2 + 1;
+
+            buffer.WriteBigEndian(FrameType.Method);
+            buffer.WriteBigEndian(++nextChannelNumber);
+            buffer.WriteBigEndian(payloadSize);
+            buffer.WriteBigEndian(Command.Channel.ClassId);
+            buffer.WriteBigEndian(Command.Channel.Open);
+            buffer.WriteBigEndian(reserved);
+            buffer.WriteBigEndian(FrameEnd);
+
+            buffer.FlushAsync();
+
+            return channel_OpenOk.Task;
+        }
+
+        // Queue
+
+        void ParseQueueMethod(ushort channelNumber, ushort methodId, ReadableBuffer arguments)
+        {
+            switch(methodId)
+            {
+
+            }
+        }
+
+        // Queue Handle methods
+
+        // Queue Send methods
+
+        public Task Send_Queue_Declare(ushort channelNumber, string queueName, bool passive, bool durable, bool exclusive, bool autoDelete, bool noWait)
+        {
+            var buffer = connection.Output.Alloc();
+
+            var queueNameBytes = Encoding.UTF8.GetBytes(queueName);
+            var queueNameLength = (byte)queueNameBytes.Length;
+
+            var arguments = new byte[0];
+            var argumentsLength = (uint)arguments.Length;
+
+            byte bitField = 2; //durable == true only
+
+            uint payloadSize = (uint)2 + 2 + 1 + 1 + 1 + queueNameLength + 1 + 4 + argumentsLength;
+
+            buffer.WriteBigEndian(FrameType.Method);
+            buffer.WriteBigEndian(channelNumber);
+            buffer.WriteBigEndian(payloadSize);
+            buffer.WriteBigEndian(Command.Queue.ClassId);
+            buffer.WriteBigEndian(Command.Queue.Declare);
+            buffer.WriteBigEndian(reserved);
+            buffer.WriteBigEndian(reserved);
+            buffer.WriteBigEndian(queueNameLength);
+            buffer.Write(queueNameBytes);
+            buffer.WriteBigEndian(bitField);
+            buffer.WriteBigEndian(argumentsLength);
+            buffer.Write(arguments);
+            buffer.WriteBigEndian(FrameEnd);
+
+            return buffer.FlushAsync();
         }
     }
 }

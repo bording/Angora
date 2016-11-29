@@ -20,6 +20,12 @@ namespace Sample
 
             var connection = await factory.CreateConnection();
 
+
+            await connection.Send_Channel_Open();
+
+            await connection.Send_Queue_Declare(1, "mine", false, true, false, false, false);
+            await connection.Send_Queue_Declare(1, "theirs", false, true, false, false, false);
+
             Console.WriteLine("Press any key to quit");
             Console.ReadKey();
 
