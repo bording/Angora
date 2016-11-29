@@ -22,7 +22,12 @@ namespace Sample
 
             var channel = await connection.CreateChannel();
 
-            await channel.QueueDeclare("mine", false, true, false, false, false, new byte[0]);
+            var tasks = new List<Task>();
+
+            tasks.Add(channel.QueueDeclare("test1", false, true, false, false, false, new byte[0]));
+            tasks.Add(channel.QueueDeclare("test2", false, true, false, false, false, new byte[0]));
+
+            await Task.WhenAll(tasks);
 
             Console.WriteLine("Press any key to quit");
             Console.ReadKey();

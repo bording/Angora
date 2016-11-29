@@ -19,7 +19,7 @@ namespace RabbitMQClient
         TaskCompletionSource<bool> queue_DeclareOk;
 
         SemaphoreSlim semaphore;
-        TaskCompletionSource<bool> synchronousMethod;
+        ushort expectedMethodId;
 
         public Channel(IPipelineWriter writer, ushort channelNumber)
         {
@@ -31,15 +31,27 @@ namespace RabbitMQClient
 
         internal void ParseMethod(ushort classId, ushort methodId, ReadableBuffer arguments)
         {
-            switch(classId)
+            try
             {
-                case Command.Channel.ClassId:
-                    ParseChannelMethod(methodId, arguments);
-                    break;
+                if (methodId != expectedMethodId)
+                {
+                    throw new Exception(); // and other appropriate stuff
+                }
 
-                case Command.Queue.ClassId:
-                    ParseQueueMethod(methodId, arguments);
-                    break;
+                switch (classId)
+                {
+                    case Command.Channel.ClassId:
+                        ParseChannelMethod(methodId, arguments);
+                        break;
+
+                    case Command.Queue.ClassId:
+                        ParseQueueMethod(methodId, arguments);
+                        break;
+                }
+            }
+            finally
+            {
+                semaphore.Release();
             }
         }
 
@@ -63,9 +75,12 @@ namespace RabbitMQClient
             }
         }
 
-        public Task Open()
+        internal async Task Open()
         {
+            await semaphore.WaitAsync();
+
             channel_OpenOk = new TaskCompletionSource<bool>();
+            expectedMethodId = Command.Channel.OpenOk;
 
             var buffer = writer.Alloc();
 
@@ -79,9 +94,9 @@ namespace RabbitMQClient
             buffer.WriteBigEndian(Reserved);
             buffer.WriteBigEndian(FrameEnd);
 
-            buffer.FlushAsync();
+            buffer.FlushAsync().Ignore();
 
-            return channel_OpenOk.Task;
+            await channel_OpenOk.Task;
         }
 
         internal void Handle_OpenOk(ReadableBuffer arguments)
@@ -89,9 +104,12 @@ namespace RabbitMQClient
             channel_OpenOk.SetResult(true);
         }
 
-        public Task QueueDeclare(string queueName, bool passive, bool durable, bool exclusive, bool autoDelete, bool noWait, byte[] arguments)
+        public async Task QueueDeclare(string queueName, bool passive, bool durable, bool exclusive, bool autoDelete, bool noWait, byte[] arguments)
         {
+            await semaphore.WaitAsync();
+
             queue_DeclareOk = new TaskCompletionSource<bool>();
+            expectedMethodId = Command.Queue.DeclareOk;
 
             var buffer = writer.Alloc();
 
@@ -118,16 +136,14 @@ namespace RabbitMQClient
             buffer.Write(arguments);
             buffer.WriteBigEndian(FrameEnd);
 
-            buffer.FlushAsync();
+            buffer.FlushAsync().Ignore();
 
-            return queue_DeclareOk.Task;
+            await queue_DeclareOk.Task;
         }
 
         internal void Handle_DeclareOk(ReadableBuffer arguments)
         {
             queue_DeclareOk.SetResult(true);
         }
-
-
     }
 }
