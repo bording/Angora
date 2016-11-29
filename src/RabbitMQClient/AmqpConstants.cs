@@ -71,6 +71,22 @@ namespace RabbitMQClient
                 public const ushort Close = 40;
                 public const ushort CloseOk = 41;
             }
+
+            public static class Queue
+            {
+                public const ushort ClassId = 50;
+
+                public const ushort Declare = 10;
+                public const ushort DeclareOk = 11;
+                public const ushort Bind = 20;
+                public const ushort BindOk = 21;
+                public const ushort Purge = 30;
+                public const ushort PurgeOk = 31;
+                public const ushort Delete = 40;
+                public const ushort DeleteOk = 41;
+                public const ushort Unbind = 50;
+                public const ushort UnbindOk = 51;
+            }
         }
     }
 }
