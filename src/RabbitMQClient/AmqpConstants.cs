@@ -8,6 +8,7 @@ namespace RabbitMQClient
     public static class AmqpConstants
     {
         public const byte FrameEnd = 0xCE;
+        public const byte Reserved = 0x00;
 
         public static class FrameType
         {

@@ -14,15 +14,18 @@ namespace RabbitMQClient
     {
         static readonly byte[] protocolHeader = { 0x41, 0x4d, 0x51, 0x50, 0x00, 0x00, 0x09, 0x01 };
 
-        const byte reserved = 0x00;
         const ushort connectionChannelNumber = 0;
-
-        SocketConnection connection;
 
         readonly string hostName;
         readonly string userName;
         readonly string password;
         readonly string virtualHost;
+
+        SocketConnection connection;
+
+        ushort nextChannelNumber;
+
+        readonly Dictionary<ushort, Channel> channels;
 
         internal Connection(string hostName, string userName, string password, string virtualHost)
         {
@@ -30,6 +33,18 @@ namespace RabbitMQClient
             this.userName = userName;
             this.password = password;
             this.virtualHost = virtualHost;
+
+            channels = new Dictionary<ushort, Channel>();
+        }
+
+        public async Task<Channel> CreateChannel()
+        {
+            var channel = new Channel(connection.Output, ++nextChannelNumber);
+            channels.Add(channel.ChannelNumber, channel);
+
+            await channel.Open();
+
+            return channel;
         }
 
         public async Task Close()
@@ -41,7 +56,6 @@ namespace RabbitMQClient
 
             connection.Dispose();
         }
-
 
         internal async Task Connect()
         {
@@ -121,19 +135,15 @@ namespace RabbitMQClient
             var methodId = payload.Slice(2, 2).ReadBigEndian<ushort>();
             var arguments = payload.Slice(4);
 
-            switch (classId)
+            if (classId == Command.Connection.ClassId) //TODO validate channel 0
             {
-                case Command.Connection.ClassId:
-                    ParseConnectionMethod(channelNumber, methodId, arguments);
-                    break;
-
-                case Command.Channel.ClassId:
-                    ParseChannelMethod(channelNumber, methodId, arguments);
-                    break;
+                ParseConnectionMethod(channelNumber, methodId, arguments);
+            }
+            else
+            {
+                channels[channelNumber].ParseMethod(classId, methodId, arguments);
             }
         }
-
-        // Connection
 
         void ParseConnectionMethod(ushort channelNumber, ushort methodId, ReadableBuffer arguments)
         {
@@ -311,8 +321,8 @@ namespace RabbitMQClient
             buffer.WriteBigEndian(Command.Connection.Open);
             buffer.WriteBigEndian(virtualHostLength);
             buffer.Write(virtualHostBytes);
-            buffer.WriteBigEndian(reserved);
-            buffer.WriteBigEndian(reserved);
+            buffer.WriteBigEndian(Reserved);
+            buffer.WriteBigEndian(Reserved);
             buffer.WriteBigEndian(FrameEnd);
             buffer.FlushAsync();
 
@@ -348,96 +358,6 @@ namespace RabbitMQClient
             buffer.FlushAsync();
 
             return connection_CloseOk.Task;
-        }
-
-        // Channel
-
-        void ParseChannelMethod(ushort channelNumber, ushort methodId, ReadableBuffer arguments)
-        {
-            switch(methodId)
-            {
-                case Command.Channel.OpenOk:
-                    Handle_Channel_OpenOk(channelNumber, arguments);
-                    break;
-            }
-        }
-
-        //  Channel Handle methods
-
-        void Handle_Channel_OpenOk(ushort channelNumber, ReadableBuffer arguments)
-        {
-            channel_OpenOk.SetResult(true);
-        }
-
-        // Channel Send methods
-
-        ushort nextChannelNumber;
-
-        TaskCompletionSource<bool> channel_OpenOk;
-        public Task Send_Channel_Open()
-        {
-            channel_OpenOk = new TaskCompletionSource<bool>();
-
-            var buffer = connection.Output.Alloc();
-
-            uint payloadSize = (uint)2 + 2 + 1;
-
-            buffer.WriteBigEndian(FrameType.Method);
-            buffer.WriteBigEndian(++nextChannelNumber);
-            buffer.WriteBigEndian(payloadSize);
-            buffer.WriteBigEndian(Command.Channel.ClassId);
-            buffer.WriteBigEndian(Command.Channel.Open);
-            buffer.WriteBigEndian(reserved);
-            buffer.WriteBigEndian(FrameEnd);
-
-            buffer.FlushAsync();
-
-            return channel_OpenOk.Task;
-        }
-
-        // Queue
-
-        void ParseQueueMethod(ushort channelNumber, ushort methodId, ReadableBuffer arguments)
-        {
-            switch(methodId)
-            {
-
-            }
-        }
-
-        // Queue Handle methods
-
-        // Queue Send methods
-
-        public Task Send_Queue_Declare(ushort channelNumber, string queueName, bool passive, bool durable, bool exclusive, bool autoDelete, bool noWait)
-        {
-            var buffer = connection.Output.Alloc();
-
-            var queueNameBytes = Encoding.UTF8.GetBytes(queueName);
-            var queueNameLength = (byte)queueNameBytes.Length;
-
-            var arguments = new byte[0];
-            var argumentsLength = (uint)arguments.Length;
-
-            byte bitField = 2; //durable == true only
-
-            uint payloadSize = (uint)2 + 2 + 1 + 1 + 1 + queueNameLength + 1 + 4 + argumentsLength;
-
-            buffer.WriteBigEndian(FrameType.Method);
-            buffer.WriteBigEndian(channelNumber);
-            buffer.WriteBigEndian(payloadSize);
-            buffer.WriteBigEndian(Command.Queue.ClassId);
-            buffer.WriteBigEndian(Command.Queue.Declare);
-            buffer.WriteBigEndian(reserved);
-            buffer.WriteBigEndian(reserved);
-            buffer.WriteBigEndian(queueNameLength);
-            buffer.Write(queueNameBytes);
-            buffer.WriteBigEndian(bitField);
-            buffer.WriteBigEndian(argumentsLength);
-            buffer.Write(arguments);
-            buffer.WriteBigEndian(FrameEnd);
-
-            return buffer.FlushAsync();
         }
     }
 }
