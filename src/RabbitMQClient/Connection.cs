@@ -51,9 +51,6 @@ namespace RabbitMQClient
         {
             await Send_Connection_Close();
 
-            connection.Input.Complete();
-            connection.Output.Complete();
-
             await connection.DisposeAsync();
         }
 
@@ -83,7 +80,7 @@ namespace RabbitMQClient
                 var readResult = await connection.Input.ReadAsync();
                 var buffer = readResult.Buffer;
 
-                if (readResult.IsCancelled || readResult.IsCompleted || buffer.IsEmpty)
+                if (buffer.IsEmpty && readResult.IsCompleted)
                 {
                     break;
                 }
