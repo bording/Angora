@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard1.6</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.IO.Pipelines" Version="0.1.0-e170210-1" />
+    <PackageReference Include="System.IO.Pipelines.Networking.Sockets" Version="0.1.0-e170210-1" />
+    <PackageReference Include="System.IO.Pipelines.Text.Primitives" Version="0.1.0-e170210-1" />
+    <PackageReference Include="System.Net.NameResolution" Version="4.3.0" />
+  </ItemGroup>
+
+</Project>

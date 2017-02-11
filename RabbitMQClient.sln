@@ -1,20 +1,15 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 14
-VisualStudioVersion = 14.0.25420.1
+# Visual Studio 15
+VisualStudioVersion = 15.0.26206.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{F7982BD4-6042-4F44-B572-F6B2003C4D79}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{0C59A09E-84E4-43D3-AFD5-85725895683E}"
-	ProjectSection(SolutionItems) = preProject
-		global.json = global.json
-	EndProjectSection
-EndProject
-Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "RabbitMQClient", "src\RabbitMQClient\RabbitMQClient.xproj", "{E8609CF9-82CC-4CC1-94D3-A002188C0284}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{C1D7C356-4377-4B2B-828F-A3FDCD185005}"
 EndProject
-Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "Sample", "samples\Sample\Sample.xproj", "{7CF23DAB-4721-4C7E-AE88-EA599D90E03B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RabbitMQClient", "src\RabbitMQClient\RabbitMQClient.csproj", "{E8609CF9-82CC-4CC1-94D3-A002188C0284}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Sample", "samples\Sample\Sample.csproj", "{7CF23DAB-4721-4C7E-AE88-EA599D90E03B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
