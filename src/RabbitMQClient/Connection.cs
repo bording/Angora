@@ -283,7 +283,7 @@ namespace RabbitMQClient
             return connection_StartOk.Task;
         }
 
-        Task Send_Connection_TuneOk(ushort channelMax, uint frameMax, ushort heartbeat)
+        async Task Send_Connection_TuneOk(ushort channelMax, uint frameMax, ushort heartbeat)
         {
             var buffer = connection.Output.Alloc();
 
@@ -299,7 +299,9 @@ namespace RabbitMQClient
             buffer.WriteBigEndian(heartbeat);
             buffer.WriteBigEndian(FrameEnd);
 
-            return buffer.FlushAsync();
+            await buffer.FlushAsync();
+
+            return;
         }
 
         TaskCompletionSource<bool> connection_OpenOk;

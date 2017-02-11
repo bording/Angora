@@ -13,7 +13,7 @@ namespace RabbitMQClient
     {
         public ushort ChannelNumber { get; }
 
-        readonly IPipelineWriter writer;
+        readonly IPipeWriter writer;
 
         TaskCompletionSource<bool> channel_OpenOk;
         TaskCompletionSource<bool> queue_DeclareOk;
@@ -21,7 +21,7 @@ namespace RabbitMQClient
         SemaphoreSlim semaphore;
         ushort expectedMethodId;
 
-        public Channel(IPipelineWriter writer, ushort channelNumber)
+        public Channel(IPipeWriter writer, ushort channelNumber)
         {
             this.writer = writer;
             ChannelNumber = channelNumber;
