@@ -180,10 +180,11 @@ namespace RabbitMQClient
 
         void Handle_Connection_Start(ushort channelNumber, ReadableBuffer arguments)
         {
-            var result = new Connection_StartResult();
-
-            result.VersionMajor = arguments.Slice(0, 1).ReadBigEndian<byte>();
-            result.VersionMinor = arguments.Slice(1, 1).ReadBigEndian<byte>();
+            var result = new Connection_StartResult
+            {
+                VersionMajor = arguments.Slice(0, 1).ReadBigEndian<byte>(),
+                VersionMinor = arguments.Slice(1, 1).ReadBigEndian<byte>()
+            };
 
             var serverPropertiesLength = arguments.Slice(2, 4).ReadBigEndian<uint>();
             result.ServerProperties = arguments.Slice(6, (int)serverPropertiesLength);
@@ -208,11 +209,12 @@ namespace RabbitMQClient
 
         void Handle_Connection_Tune(ushort channelNumber, ReadableBuffer arguments)
         {
-            var result = new Connection_TuneResult();
-
-            result.ChannelMax = arguments.Slice(0, 2).ReadBigEndian<ushort>();
-            result.FrameMax = arguments.Slice(2, 4).ReadBigEndian<uint>();
-            result.Heartbeat = arguments.Slice(6, 2).ReadBigEndian<ushort>();
+            var result = new Connection_TuneResult
+            {
+                ChannelMax = arguments.Slice(0, 2).ReadBigEndian<ushort>(),
+                FrameMax = arguments.Slice(2, 4).ReadBigEndian<uint>(),
+                Heartbeat = arguments.Slice(6, 2).ReadBigEndian<ushort>()
+            };
 
             connection_StartOk.SetResult(result);
         }

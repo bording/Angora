@@ -15,17 +15,20 @@ namespace Sample
 
         public static async Task MainAsync(string[] args)
         {
-            var factory = new ConnectionFactory();
-            factory.HostName = "rabbit";
+            var factory = new ConnectionFactory
+            {
+                HostName = "rabbit"
+            };
 
             var connection = await factory.CreateConnection();
 
             var channel = await connection.CreateChannel();
 
-            var tasks = new List<Task>();
-
-            tasks.Add(channel.QueueDeclare("test1", false, true, false, false, false, new byte[0]));
-            tasks.Add(channel.QueueDeclare("test2", false, true, false, false, false, new byte[0]));
+            var tasks = new List<Task>
+            {
+                channel.QueueDeclare("test1", false, true, false, false, false, new byte[0]),
+                channel.QueueDeclare("test2", false, true, false, false, false, new byte[0])
+            };
 
             await Task.WhenAll(tasks);
 
