@@ -54,7 +54,7 @@ namespace RabbitMQClient
             connection.Input.Complete();
             connection.Output.Complete();
 
-            connection.Dispose();
+            await connection.DisposeAsync();
         }
 
         internal async Task Connect()
