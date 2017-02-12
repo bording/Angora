@@ -288,16 +288,22 @@ namespace RabbitMQClient
         {
             var buffer = connection.Output.Alloc();
 
-            uint payloadSize = 2 + 2 + 2 + 4 + 2;
-
             buffer.WriteBigEndian(FrameType.Method);
             buffer.WriteBigEndian(connectionChannelNumber);
-            buffer.WriteBigEndian(payloadSize);
+
+            buffer.Ensure(sizeof(uint));
+            var payloadSizeBookmark = buffer.Memory;
+            buffer.Advance(sizeof(uint));
+
             buffer.WriteBigEndian(Command.Connection.ClassId);
             buffer.WriteBigEndian(Command.Connection.TuneOk);
             buffer.WriteBigEndian(channelMax);
             buffer.WriteBigEndian(frameMax);
             buffer.WriteBigEndian(heartbeat);
+
+            var payloadSize = (uint)buffer.BytesWritten - frameHeaderSize;
+            payloadSizeBookmark.Span.WriteBigEndian(payloadSize);
+
             buffer.WriteBigEndian(FrameEnd);
 
             await buffer.FlushAsync();
