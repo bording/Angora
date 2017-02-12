@@ -1,10 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Binary;
 using System.IO.Pipelines;
-using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+
 using static RabbitMQClient.AmqpConstants;
 
 namespace RabbitMQClient
@@ -84,14 +84,20 @@ namespace RabbitMQClient
 
             var buffer = writer.Alloc();
 
-            uint payloadSize = (uint)2 + 2 + 1;
-
             buffer.WriteBigEndian(FrameType.Method);
             buffer.WriteBigEndian(ChannelNumber);
-            buffer.WriteBigEndian(payloadSize);
+
+            buffer.Ensure(sizeof(uint));
+            var payloadSizeBookmark = buffer.Memory;
+            buffer.Advance(sizeof(uint));
+
             buffer.WriteBigEndian(Command.Channel.ClassId);
             buffer.WriteBigEndian(Command.Channel.Open);
             buffer.WriteBigEndian(Reserved);
+
+            var payloadSize = (uint)buffer.BytesWritten - FrameHeaderSize;
+            payloadSizeBookmark.Span.WriteBigEndian(payloadSize);
+
             buffer.WriteBigEndian(FrameEnd);
 
             buffer.FlushAsync().Ignore();

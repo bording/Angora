@@ -5,8 +5,8 @@ using System.IO.Pipelines;
 using System.IO.Pipelines.Networking.Sockets;
 using System.Linq;
 using System.Net;
-using System.Text;
 using System.Threading.Tasks;
+
 using static RabbitMQClient.AmqpConstants;
 
 namespace RabbitMQClient
@@ -16,7 +16,6 @@ namespace RabbitMQClient
         static readonly byte[] protocolHeader = { 0x41, 0x4d, 0x51, 0x50, 0x00, 0x00, 0x09, 0x01 };
 
         const ushort connectionChannelNumber = 0;
-        const uint frameHeaderSize = 7;
 
         readonly string hostName;
         readonly string userName;
@@ -264,7 +263,7 @@ namespace RabbitMQClient
             buffer.WriteLongString($"\0{userName}\0{password}"); //response
             buffer.WriteShortString("en_US"); //locale
 
-            var payloadSize = (uint)buffer.BytesWritten - frameHeaderSize;
+            var payloadSize = (uint)buffer.BytesWritten - FrameHeaderSize;
             payloadSizeBookmark.Span.WriteBigEndian(payloadSize);
 
             buffer.WriteBigEndian(FrameEnd);
@@ -291,7 +290,7 @@ namespace RabbitMQClient
             buffer.WriteBigEndian(frameMax);
             buffer.WriteBigEndian(heartbeat);
 
-            var payloadSize = (uint)buffer.BytesWritten - frameHeaderSize;
+            var payloadSize = (uint)buffer.BytesWritten - FrameHeaderSize;
             payloadSizeBookmark.Span.WriteBigEndian(payloadSize);
 
             buffer.WriteBigEndian(FrameEnd);
@@ -321,7 +320,7 @@ namespace RabbitMQClient
             buffer.WriteBigEndian(Reserved);
             buffer.WriteBigEndian(Reserved);
 
-            var payloadSize = (uint)buffer.BytesWritten - frameHeaderSize;
+            var payloadSize = (uint)buffer.BytesWritten - FrameHeaderSize;
             payloadSizeBookmark.Span.WriteBigEndian(payloadSize);
 
             buffer.WriteBigEndian(FrameEnd);
@@ -352,7 +351,7 @@ namespace RabbitMQClient
             buffer.WriteBigEndian(failingClass);
             buffer.WriteBigEndian(failingMethod);
 
-            var payloadSize = (uint)buffer.BytesWritten - frameHeaderSize;
+            var payloadSize = (uint)buffer.BytesWritten - FrameHeaderSize;
             payloadSizeBookmark.Span.WriteBigEndian(payloadSize);
 
             buffer.WriteBigEndian(FrameEnd);

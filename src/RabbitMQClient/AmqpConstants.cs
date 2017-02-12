@@ -1,12 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-
-namespace RabbitMQClient
+﻿namespace RabbitMQClient
 {
     public static class AmqpConstants
     {
+        public const uint FrameHeaderSize = 7;
         public const byte FrameEnd = 0xCE;
         public const byte Reserved = 0x00;
 
