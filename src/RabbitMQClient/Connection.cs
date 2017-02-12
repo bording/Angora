@@ -250,33 +250,23 @@ namespace RabbitMQClient
 
             var buffer = connection.Output.Alloc();
 
-            var clientProperties = new byte[0];
-            var clientPropertiesLength = (uint)clientProperties.Length;
-
-            var mechanism = Encoding.UTF8.GetBytes("PLAIN");
-            var mechanismLength = (byte)mechanism.Length;
-
-            var response = Encoding.UTF8.GetBytes($"\0{userName}\0{password}");
-            var responseLength = (uint)response.Length;
-
-            var locale = Encoding.UTF8.GetBytes("en_US");
-            var localeLength = (byte)locale.Length;
-
-            var payloadSize = 2 + 2 + 4 + clientPropertiesLength + 1 + mechanismLength + 4 + responseLength + 1 + localeLength;
-
             buffer.WriteBigEndian(FrameType.Method);
             buffer.WriteBigEndian(connectionChannelNumber);
-            buffer.WriteBigEndian(payloadSize);
+
+            buffer.Ensure(sizeof(uint));
+            var payloadSizeBookmark = buffer.Memory;
+            buffer.Advance(sizeof(uint));
+
             buffer.WriteBigEndian(Command.Connection.ClassId);
             buffer.WriteBigEndian(Command.Connection.StartOk);
-            buffer.WriteBigEndian(clientPropertiesLength);
-            buffer.Write(clientProperties);
-            buffer.WriteBigEndian(mechanismLength);
-            buffer.Write(mechanism);
-            buffer.WriteBigEndian(responseLength);
-            buffer.Write(response);
-            buffer.WriteBigEndian(localeLength);
-            buffer.Write(locale);
+            buffer.WriteTable(new byte[0]); //client-properties
+            buffer.WriteShortString("PLAIN"); //mechanism
+            buffer.WriteLongString($"\0{userName}\0{password}"); //response
+            buffer.WriteShortString("en_US"); //locale
+
+            var payloadSize = (uint)buffer.BytesWritten - frameHeaderSize;
+            payloadSizeBookmark.Span.WriteBigEndian(payloadSize);
+
             buffer.WriteBigEndian(FrameEnd);
 
             buffer.FlushAsync();
