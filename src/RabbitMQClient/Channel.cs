@@ -119,27 +119,28 @@ namespace RabbitMQClient
 
             var buffer = writer.Alloc();
 
-            var queueNameBytes = Encoding.UTF8.GetBytes(queueName);
-            var queueNameLength = (byte)queueNameBytes.Length;
-
-            var argumentsLength = (uint)arguments.Length;
-
-            byte bitField = 2; //durable == true only
-
-            uint payloadSize = (uint)2 + 2 + 1 + 1 + 1 + queueNameLength + 1 + 4 + argumentsLength;
-
             buffer.WriteBigEndian(FrameType.Method);
             buffer.WriteBigEndian(ChannelNumber);
-            buffer.WriteBigEndian(payloadSize);
+
+            buffer.Ensure(sizeof(uint));
+            var payloadSizeBookmark = buffer.Memory;
+            buffer.Advance(sizeof(uint));
+
             buffer.WriteBigEndian(Command.Queue.ClassId);
             buffer.WriteBigEndian(Command.Queue.Declare);
             buffer.WriteBigEndian(Reserved);
             buffer.WriteBigEndian(Reserved);
-            buffer.WriteBigEndian(queueNameLength);
-            buffer.Write(queueNameBytes);
+            buffer.WriteShortString(queueName);
+
+            //all the bools need to go into bitfield here
+            byte bitField = 2; //durable == true only
             buffer.WriteBigEndian(bitField);
-            buffer.WriteBigEndian(argumentsLength);
-            buffer.Write(arguments);
+
+            buffer.WriteTable(arguments);
+
+            var payloadSize = (uint)buffer.BytesWritten - FrameHeaderSize;
+            payloadSizeBookmark.Span.WriteBigEndian(payloadSize);
+
             buffer.WriteBigEndian(FrameEnd);
 
             buffer.FlushAsync().Ignore();
