@@ -141,17 +141,19 @@ namespace RabbitMQClient
 
         void ParseMethodFrame(ushort channelNumber, ReadableBuffer payload)
         {
-            var classId = payload.Slice(0, 2).ReadBigEndian<ushort>();
-            var methodId = payload.Slice(2, 2).ReadBigEndian<ushort>();
-            var arguments = payload.Slice(4);
+            var classId = payload.ReadBigEndian<ushort>();
+            payload = payload.Slice(sizeof(ushort));
+
+            var methodId = payload.ReadBigEndian<ushort>();
+            payload = payload.Slice(sizeof(ushort));
 
             if (classId == Command.Connection.ClassId) //TODO validate channel 0
             {
-                ParseConnectionMethod(channelNumber, methodId, arguments);
+                ParseConnectionMethod(channelNumber, methodId, payload);
             }
             else
             {
-                channels[channelNumber].ParseMethod(classId, methodId, arguments);
+                channels[channelNumber].ParseMethod(classId, methodId, payload);
             }
         }
 
