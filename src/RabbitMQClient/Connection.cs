@@ -86,14 +86,26 @@ namespace RabbitMQClient
                     break;
                 }
 
-                var frameType = buffer.Slice(0, 1).ReadBigEndian<byte>();
-                var channelNumber = buffer.Slice(1, 2).ReadBigEndian<ushort>();
+                var frameType = buffer.ReadBigEndian<byte>();
+                buffer = buffer.Slice(sizeof(byte));
 
-                var payloadSize = buffer.Slice(3, 4).ReadBigEndian<uint>();
-                var payload = buffer.Slice(7, (int)payloadSize);
+                var channelNumber = buffer.ReadBigEndian<ushort>();
+                buffer = buffer.Slice(sizeof(ushort));
 
-                var frameEnd = buffer.Slice((int)payloadSize + 7, 1).ReadBigEndian<byte>();
-                //TODO validate frame end
+                var payloadSize = buffer.ReadBigEndian<uint>();
+                buffer = buffer.Slice(sizeof(uint));
+
+                var payload = buffer.Slice(buffer.Start, (int)payloadSize);
+                buffer = buffer.Slice((int)payloadSize);
+
+                var frameEnd = buffer.ReadBigEndian<byte>();
+                buffer = buffer.Slice(sizeof(byte));
+
+                if (frameEnd != FrameEnd)
+                {
+                    //TODO other stuff here around what this means
+                    throw new Exception();
+                }
 
                 switch (frameType)
                 {
@@ -102,7 +114,7 @@ namespace RabbitMQClient
                         break;
                 }
 
-                connection.Input.Advance(buffer.End);
+                connection.Input.Advance(buffer.Start);
             }
         }
 
