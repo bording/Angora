@@ -114,9 +114,6 @@ namespace RabbitMQClient
         {
             await semaphore.WaitAsync();
 
-            queue_DeclareOk = new TaskCompletionSource<bool>();
-            expectedMethodId = Command.Queue.DeclareOk;
-
             var buffer = writer.Alloc();
 
             buffer.WriteBigEndian(FrameType.Method);
@@ -131,11 +128,7 @@ namespace RabbitMQClient
             buffer.WriteBigEndian(Reserved);
             buffer.WriteBigEndian(Reserved);
             buffer.WriteShortString(queueName);
-
-            //all the bools need to go into bitfield here
-            byte bitField = 2; //durable == true only
-            buffer.WriteBigEndian(bitField);
-
+            buffer.WriteBits(passive, durable, exclusive, autoDelete, noWait);
             buffer.WriteTable(arguments);
 
             var payloadSize = (uint)buffer.BytesWritten - FrameHeaderSize;
@@ -143,9 +136,20 @@ namespace RabbitMQClient
 
             buffer.WriteBigEndian(FrameEnd);
 
-            buffer.FlushAsync().Ignore();
+            if (noWait)
+            {
+                await buffer.FlushAsync();
+                semaphore.Release();
+            }
+            else
+            {
+                queue_DeclareOk = new TaskCompletionSource<bool>();
+                expectedMethodId = Command.Queue.DeclareOk;
 
-            await queue_DeclareOk.Task;
+                buffer.FlushAsync().Ignore();
+
+                await queue_DeclareOk.Task;
+            }
         }
 
         internal void Handle_DeclareOk(ReadableBuffer arguments)
