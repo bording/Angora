@@ -16,6 +16,7 @@ namespace RabbitMQClient
         static readonly byte[] protocolHeader = { 0x41, 0x4d, 0x51, 0x50, 0x00, 0x00, 0x09, 0x01 };
 
         const ushort connectionChannelNumber = 0;
+        const uint frameHeaderSize = 7;
 
         readonly string hostName;
         readonly string userName;
@@ -318,16 +319,14 @@ namespace RabbitMQClient
             var payloadSizeBookmark = buffer.Memory;
             buffer.Advance(sizeof(uint));
 
-            var frameHeaderSize = buffer.BytesWritten;
-
             buffer.WriteBigEndian(Command.Connection.ClassId);
             buffer.WriteBigEndian(Command.Connection.Open);
             buffer.WriteShortString(virtualHost);
             buffer.WriteBigEndian(Reserved);
             buffer.WriteBigEndian(Reserved);
 
-            var payloadSize = buffer.BytesWritten - frameHeaderSize;
-            payloadSizeBookmark.Span.WriteBigEndian((uint)payloadSize);
+            var payloadSize = (uint)buffer.BytesWritten - frameHeaderSize;
+            payloadSizeBookmark.Span.WriteBigEndian(payloadSize);
 
             buffer.WriteBigEndian(FrameEnd);
 
@@ -337,29 +336,29 @@ namespace RabbitMQClient
         }
 
         TaskCompletionSource<bool> connection_CloseOk;
-        Task Send_Connection_Close()
+        Task Send_Connection_Close(ushort replyCode = ConnectionReplyCode.Success, string replyText = "Goodbye", ushort failingClass = 0, ushort failingMethod = 0)
         {
             connection_CloseOk = new TaskCompletionSource<bool>();
 
             var buffer = connection.Output.Alloc();
 
-            var replyText = Encoding.UTF8.GetBytes("Connection close forced");
-            var replyTextLength = (byte)replyText.Length;
-
-            ushort emptyError = 0;
-
-            uint payloadSize = (uint)2 + 2 + 2 + 1 + replyTextLength + 2 + 2;
-
             buffer.WriteBigEndian(FrameType.Method);
             buffer.WriteBigEndian(connectionChannelNumber);
-            buffer.WriteBigEndian(payloadSize);
+
+            buffer.Ensure(sizeof(uint));
+            var payloadSizeBookmark = buffer.Memory;
+            buffer.Advance(sizeof(uint));
+
             buffer.WriteBigEndian(Command.Connection.ClassId);
             buffer.WriteBigEndian(Command.Connection.Close);
-            buffer.WriteBigEndian(ConnectionReplyCode.Success);
-            buffer.WriteBigEndian(replyTextLength);
-            buffer.Write(replyText);
-            buffer.WriteBigEndian(emptyError);
-            buffer.WriteBigEndian(emptyError);
+            buffer.WriteBigEndian(replyCode);
+            buffer.WriteShortString(replyText);
+            buffer.WriteBigEndian(failingClass);
+            buffer.WriteBigEndian(failingMethod);
+
+            var payloadSize = (uint)buffer.BytesWritten - frameHeaderSize;
+            payloadSizeBookmark.Span.WriteBigEndian(payloadSize);
+
             buffer.WriteBigEndian(FrameEnd);
 
             buffer.FlushAsync();
