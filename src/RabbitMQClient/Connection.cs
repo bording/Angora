@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Binary;
 using System.Collections.Generic;
 using System.IO.Pipelines;
 using System.IO.Pipelines.Networking.Sockets;
@@ -310,21 +311,26 @@ namespace RabbitMQClient
 
             var buffer = connection.Output.Alloc();
 
-            var virtualHostBytes = Encoding.UTF8.GetBytes(virtualHost);
-            var virtualHostLength = (byte)virtualHostBytes.Length;
-
-            uint payloadSize = (uint)2 + 2 + 1 + virtualHostLength + 1 + 1;
-
             buffer.WriteBigEndian(FrameType.Method);
             buffer.WriteBigEndian(connectionChannelNumber);
-            buffer.WriteBigEndian(payloadSize);
+
+            buffer.Ensure(sizeof(uint));
+            var payloadSizeBookmark = buffer.Memory;
+            buffer.Advance(sizeof(uint));
+
+            var frameHeaderSize = buffer.BytesWritten;
+
             buffer.WriteBigEndian(Command.Connection.ClassId);
             buffer.WriteBigEndian(Command.Connection.Open);
-            buffer.WriteBigEndian(virtualHostLength);
-            buffer.Write(virtualHostBytes);
+            buffer.WriteShortString(virtualHost);
             buffer.WriteBigEndian(Reserved);
             buffer.WriteBigEndian(Reserved);
+
+            var payloadSize = buffer.BytesWritten - frameHeaderSize;
+            payloadSizeBookmark.Span.WriteBigEndian((uint)payloadSize);
+
             buffer.WriteBigEndian(FrameEnd);
+
             buffer.FlushAsync();
 
             return connection_OpenOk.Task;
