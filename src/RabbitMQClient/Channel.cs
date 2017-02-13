@@ -60,7 +60,7 @@ namespace RabbitMQClient
             switch (methodId)
             {
                 case Command.Channel.OpenOk:
-                    Handle_OpenOk(arguments);
+                    Handle_OpenOk();
                     break;
             }
         }
@@ -105,7 +105,7 @@ namespace RabbitMQClient
             await channel_OpenOk.Task;
         }
 
-        internal void Handle_OpenOk(ReadableBuffer arguments)
+        internal void Handle_OpenOk()
         {
             channel_OpenOk.SetResult(true);
         }
@@ -154,6 +154,7 @@ namespace RabbitMQClient
 
         internal void Handle_DeclareOk(ReadableBuffer arguments)
         {
+            //TODO this has arguments to return
             queue_DeclareOk.SetResult(true);
         }
     }

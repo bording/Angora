@@ -149,7 +149,7 @@ namespace RabbitMQClient
 
             if (classId == Command.Connection.ClassId) //TODO validate channel 0
             {
-                ParseConnectionMethod(channelNumber, methodId, payload);
+                ParseConnectionMethod(methodId, payload);
             }
             else
             {
@@ -157,24 +157,24 @@ namespace RabbitMQClient
             }
         }
 
-        void ParseConnectionMethod(ushort channelNumber, ushort methodId, ReadableBuffer arguments)
+        void ParseConnectionMethod(ushort methodId, ReadableBuffer arguments)
         {
             switch (methodId)
             {
                 case Command.Connection.Start:
-                    Handle_Connection_Start(channelNumber, arguments);
+                    Handle_Connection_Start(arguments);
                     break;
 
                 case Command.Connection.Tune:
-                    Handle_Connection_Tune(channelNumber, arguments);
+                    Handle_Connection_Tune(arguments);
                     break;
 
                 case Command.Connection.OpenOk:
-                    Handle_Connection_OpenOk(channelNumber, arguments);
+                    Handle_Connection_OpenOk();
                     break;
 
                 case Command.Connection.CloseOk:
-                    Handle_Connection_CloseOk(channelNumber, arguments);
+                    Handle_Connection_CloseOk();
                     break;
             }
         }
@@ -190,7 +190,7 @@ namespace RabbitMQClient
             public string Locales;
         }
 
-        void Handle_Connection_Start(ushort channelNumber, ReadableBuffer arguments)
+        void Handle_Connection_Start(ReadableBuffer arguments)
         {
             Connection_StartResult result;
             ReadCursor cursor;
@@ -219,24 +219,27 @@ namespace RabbitMQClient
             public ushort Heartbeat;
         }
 
-        void Handle_Connection_Tune(ushort channelNumber, ReadableBuffer arguments)
+        void Handle_Connection_Tune(ReadableBuffer arguments)
         {
-            var result = new Connection_TuneResult
-            {
-                ChannelMax = arguments.Slice(0, 2).ReadBigEndian<ushort>(),
-                FrameMax = arguments.Slice(2, 4).ReadBigEndian<uint>(),
-                Heartbeat = arguments.Slice(6, 2).ReadBigEndian<ushort>()
-            };
+            Connection_TuneResult result;
+
+            result.ChannelMax = arguments.ReadBigEndian<ushort>();
+            arguments = arguments.Slice(sizeof(ushort));
+
+            result.FrameMax = arguments.ReadBigEndian<uint>();
+            arguments = arguments.Slice(sizeof(uint));
+
+            result.Heartbeat = arguments.ReadBigEndian<ushort>();
 
             connection_StartOk.SetResult(result);
         }
 
-        void Handle_Connection_OpenOk(ushort channelNumber, ReadableBuffer arguments)
+        void Handle_Connection_OpenOk()
         {
             connection_OpenOk.SetResult(true);
         }
 
-        void Handle_Connection_CloseOk(ushort channelNumber, ReadableBuffer arguments)
+        void Handle_Connection_CloseOk()
         {
             connection_CloseOk.SetResult(true);
         }
