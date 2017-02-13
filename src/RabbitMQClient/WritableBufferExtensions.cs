@@ -6,6 +6,18 @@ namespace RabbitMQClient
 {
     static class WritableBufferExtensions
     {
+        public static Span<byte> WriteFrameHeader(this WritableBuffer buffer, byte frameType, ushort channel)
+        {
+            buffer.WriteBigEndian(frameType);
+            buffer.WriteBigEndian(channel);
+
+            buffer.Ensure(sizeof(uint));
+            var payloadSizeBookmark = buffer.Memory.Span;
+            buffer.Advance(sizeof(uint));
+
+            return payloadSizeBookmark;
+        }
+
         public static void WriteShortString(this WritableBuffer buffer, string value)
         {
             var valueBytes = Encoding.UTF8.GetBytes(value);

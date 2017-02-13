@@ -266,12 +266,7 @@ namespace RabbitMQClient
 
             var buffer = connection.Output.Alloc();
 
-            buffer.WriteBigEndian(FrameType.Method);
-            buffer.WriteBigEndian(connectionChannelNumber);
-
-            buffer.Ensure(sizeof(uint));
-            var payloadSizeBookmark = buffer.Memory;
-            buffer.Advance(sizeof(uint));
+            var payloadSizeBookmark = buffer.WriteFrameHeader(FrameType.Method, connectionChannelNumber);
 
             buffer.WriteBigEndian(Command.Connection.ClassId);
             buffer.WriteBigEndian(Command.Connection.StartOk);
@@ -281,7 +276,7 @@ namespace RabbitMQClient
             buffer.WriteShortString("en_US"); //locale
 
             var payloadSize = (uint)buffer.BytesWritten - FrameHeaderSize;
-            payloadSizeBookmark.Span.WriteBigEndian(payloadSize);
+            payloadSizeBookmark.WriteBigEndian(payloadSize);
 
             buffer.WriteBigEndian(FrameEnd);
 
@@ -294,12 +289,7 @@ namespace RabbitMQClient
         {
             var buffer = connection.Output.Alloc();
 
-            buffer.WriteBigEndian(FrameType.Method);
-            buffer.WriteBigEndian(connectionChannelNumber);
-
-            buffer.Ensure(sizeof(uint));
-            var payloadSizeBookmark = buffer.Memory;
-            buffer.Advance(sizeof(uint));
+            var payloadSizeBookmark = buffer.WriteFrameHeader(FrameType.Method, connectionChannelNumber);
 
             buffer.WriteBigEndian(Command.Connection.ClassId);
             buffer.WriteBigEndian(Command.Connection.TuneOk);
@@ -308,7 +298,7 @@ namespace RabbitMQClient
             buffer.WriteBigEndian(heartbeat);
 
             var payloadSize = (uint)buffer.BytesWritten - FrameHeaderSize;
-            payloadSizeBookmark.Span.WriteBigEndian(payloadSize);
+            payloadSizeBookmark.WriteBigEndian(payloadSize);
 
             buffer.WriteBigEndian(FrameEnd);
 
@@ -324,12 +314,7 @@ namespace RabbitMQClient
 
             var buffer = connection.Output.Alloc();
 
-            buffer.WriteBigEndian(FrameType.Method);
-            buffer.WriteBigEndian(connectionChannelNumber);
-
-            buffer.Ensure(sizeof(uint));
-            var payloadSizeBookmark = buffer.Memory;
-            buffer.Advance(sizeof(uint));
+            var payloadSizeBookmark = buffer.WriteFrameHeader(FrameType.Method, connectionChannelNumber);
 
             buffer.WriteBigEndian(Command.Connection.ClassId);
             buffer.WriteBigEndian(Command.Connection.Open);
@@ -338,7 +323,7 @@ namespace RabbitMQClient
             buffer.WriteBigEndian(Reserved);
 
             var payloadSize = (uint)buffer.BytesWritten - FrameHeaderSize;
-            payloadSizeBookmark.Span.WriteBigEndian(payloadSize);
+            payloadSizeBookmark.WriteBigEndian(payloadSize);
 
             buffer.WriteBigEndian(FrameEnd);
 
@@ -354,12 +339,7 @@ namespace RabbitMQClient
 
             var buffer = connection.Output.Alloc();
 
-            buffer.WriteBigEndian(FrameType.Method);
-            buffer.WriteBigEndian(connectionChannelNumber);
-
-            buffer.Ensure(sizeof(uint));
-            var payloadSizeBookmark = buffer.Memory;
-            buffer.Advance(sizeof(uint));
+            var payloadSizeBookmark = buffer.WriteFrameHeader(FrameType.Method, connectionChannelNumber);
 
             buffer.WriteBigEndian(Command.Connection.ClassId);
             buffer.WriteBigEndian(Command.Connection.Close);
@@ -369,7 +349,7 @@ namespace RabbitMQClient
             buffer.WriteBigEndian(failingMethod);
 
             var payloadSize = (uint)buffer.BytesWritten - FrameHeaderSize;
-            payloadSizeBookmark.Span.WriteBigEndian(payloadSize);
+            payloadSizeBookmark.WriteBigEndian(payloadSize);
 
             buffer.WriteBigEndian(FrameEnd);
 
