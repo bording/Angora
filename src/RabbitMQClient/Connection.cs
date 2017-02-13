@@ -185,7 +185,7 @@ namespace RabbitMQClient
         {
             public byte VersionMajor;
             public byte VersionMinor;
-            public byte[] ServerProperties;
+            public Dictionary<string, object> ServerProperties;
             public string Mechanisms;
             public string Locales;
         }
