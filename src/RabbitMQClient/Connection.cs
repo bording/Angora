@@ -185,29 +185,29 @@ namespace RabbitMQClient
         {
             public byte VersionMajor;
             public byte VersionMinor;
-            public ReadableBuffer ServerProperties;
-            public ReadableBuffer Mechanisms;
-            public ReadableBuffer Locales;
+            public byte[] ServerProperties;
+            public string Mechanisms;
+            public string Locales;
         }
 
         void Handle_Connection_Start(ushort channelNumber, ReadableBuffer arguments)
         {
-            var result = new Connection_StartResult
-            {
-                VersionMajor = arguments.Slice(0, 1).ReadBigEndian<byte>(),
-                VersionMinor = arguments.Slice(1, 1).ReadBigEndian<byte>()
-            };
+            Connection_StartResult result;
+            ReadCursor cursor;
 
-            var serverPropertiesLength = arguments.Slice(2, 4).ReadBigEndian<uint>();
-            result.ServerProperties = arguments.Slice(6, (int)serverPropertiesLength);
+            result.VersionMajor = arguments.ReadBigEndian<byte>();
+            arguments = arguments.Slice(sizeof(byte));
 
-            var mechanismsStart = 6 + (int)serverPropertiesLength;
-            var mechanismsLength = arguments.Slice(mechanismsStart, 4).ReadBigEndian<uint>();
-            result.Mechanisms = arguments.Slice(mechanismsStart + 4, (int)mechanismsLength);
+            result.VersionMinor = arguments.ReadBigEndian<byte>();
+            arguments = arguments.Slice(sizeof(byte));
 
-            var localesStart = mechanismsStart + 4 + (int)mechanismsLength;
-            var localesLength = arguments.Slice(localesStart, 4).ReadBigEndian<uint>();
-            result.Locales = arguments.Slice(localesStart + 4, (int)localesLength);
+            (result.ServerProperties, cursor) = arguments.ReadTable();
+            arguments = arguments.Slice(cursor);
+
+            (result.Mechanisms, cursor) = arguments.ReadLongString();
+            arguments = arguments.Slice(cursor);
+
+            (result.Locales, cursor) = arguments.ReadLongString();
 
             connection_ProtocolHeader.SetResult(result);
         }

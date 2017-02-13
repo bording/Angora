@@ -7,6 +7,7 @@
   <ItemGroup>
     <PackageReference Include="System.IO.Pipelines.Networking.Sockets" Version="0.1.0-e170210-1" />
     <PackageReference Include="System.Net.NameResolution" Version="4.3.0" />
+    <PackageReference Include="System.ValueTuple" Version="4.3.0" />
   </ItemGroup>
 
 </Project>
