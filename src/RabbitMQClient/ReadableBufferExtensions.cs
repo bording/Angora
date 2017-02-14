@@ -7,6 +7,26 @@ namespace RabbitMQClient
 {
     static class ReadableBufferExtensions
     {
+        static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        static (List<object> value, ReadCursor position) ReadArray(this ReadableBuffer buffer)
+        {
+            var result = new List<object>();
+
+            var arrayLength = buffer.ReadBigEndian<uint>();
+            buffer = buffer.Slice(sizeof(uint), (int)arrayLength);
+
+            while (!buffer.IsEmpty)
+            {
+                var (fieldValue, cursor) = buffer.ReadFieldValue();
+                buffer = buffer.Slice(cursor);
+
+                result.Add(fieldValue);
+            }
+
+            return (result, buffer.End);
+        }
+
         public static (Dictionary<string, object> value, ReadCursor position) ReadTable(this ReadableBuffer buffer)
         {
             var result = new Dictionary<string, object>();
@@ -56,22 +76,22 @@ namespace RabbitMQClient
                 case 'd':
                     return (buffer.ReadBigEndian<double>(), buffer.Move(buffer.Start, sizeof(double)));
                 case 'D':
-                    break; //TODO add Decimal
+                    return buffer.ReadDecimal();
                 case 'S':
                     return buffer.ReadLongString();
                 case 'A':
-                    break; //TODO add Array
+                    return buffer.ReadArray();
                 case 'T':
-                    break; //TODO add Timestamp
+                    return buffer.ReadTimestamp();
                 case 'F':
                     return buffer.ReadTable();
                 case 'V':
-                    break; //TODO handle Void
+                    return (null, buffer.Start);
                 case 'x':
-                    break; //TODO handle byte array qpid type
+                    return buffer.ReadBytes();
+                default:
+                    throw new Exception($"Unknown field value type: '{fieldValueType}'.");
             }
-
-            return (null, new ReadCursor());
         }
 
         public static (string value, ReadCursor position) ReadShortString(this ReadableBuffer buffer)
@@ -88,6 +108,33 @@ namespace RabbitMQClient
             var bytes = buffer.Slice(sizeof(uint), (int)length);
 
             return (Encoding.UTF8.GetString(bytes.ToArray()), bytes.End);
+        }
+
+        static (byte[] value, ReadCursor position) ReadBytes(this ReadableBuffer buffer)
+        {
+            var length = buffer.ReadBigEndian<uint>();
+            var bytes = buffer.Slice(sizeof(uint), (int)length);
+
+            return (bytes.ToArray(), bytes.End);
+        }
+
+        static (decimal value, ReadCursor position) ReadDecimal(this ReadableBuffer buffer)
+        {
+            var scale = buffer.ReadBigEndian<byte>();
+            buffer = buffer.Slice(sizeof(byte));
+
+            var value = buffer.ReadBigEndian<uint>();
+            buffer = buffer.Slice(sizeof(uint));
+
+            return (default(decimal), buffer.Start); //TODO return real value
+        }
+
+        static (DateTime value, ReadCursor position) ReadTimestamp(this ReadableBuffer buffer)
+        {
+            var time = buffer.ReadBigEndian<ulong>();
+            buffer = buffer.Slice(sizeof(ulong));
+
+            return (UnixEpoch.AddSeconds(time), buffer.Start);
         }
     }
 }
