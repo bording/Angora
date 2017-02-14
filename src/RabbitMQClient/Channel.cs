@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Binary;
+using System.Collections.Generic;
 using System.IO.Pipelines;
 using System.Text;
 using System.Threading;
@@ -104,7 +105,7 @@ namespace RabbitMQClient
             channel_OpenOk.SetResult(true);
         }
 
-        public async Task QueueDeclare(string queueName, bool passive, bool durable, bool exclusive, bool autoDelete, bool noWait, byte[] arguments)
+        public async Task QueueDeclare(string queueName, bool passive, bool durable, bool exclusive, bool autoDelete, bool noWait, Dictionary<string, object> arguments)
         {
             await semaphore.WaitAsync();
 

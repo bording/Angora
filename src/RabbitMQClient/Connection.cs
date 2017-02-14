@@ -270,7 +270,7 @@ namespace RabbitMQClient
 
             buffer.WriteBigEndian(Command.Connection.ClassId);
             buffer.WriteBigEndian(Command.Connection.StartOk);
-            buffer.WriteTable(new byte[0]); //client-properties
+            buffer.WriteTable(null); //client-properties
             buffer.WriteShortString("PLAIN"); //mechanism
             buffer.WriteLongString($"\0{userName}\0{password}"); //response
             buffer.WriteShortString("en_US"); //locale

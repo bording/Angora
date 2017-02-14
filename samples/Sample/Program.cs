@@ -24,13 +24,14 @@ namespace Sample
 
             var channel = await connection.CreateChannel();
 
-            var tasks = new List<Task>
+            var arguments = new Dictionary<string, object>
             {
-                channel.QueueDeclare("test1", false, true, false, false, true, new byte[0]),
-                channel.QueueDeclare("test2", false, true, false, false, false, new byte[0])
+                { "x-queue-mode", "lazy" },
+                { "x-message-ttl", 3000 }
             };
 
-            await Task.WhenAll(tasks);
+            await channel.QueueDeclare("test1", false, true, false, false, false, arguments);
+            await channel.QueueDeclare("test2", false, true, false, false, true, null);
 
             Console.WriteLine("Press any key to quit");
             Console.ReadKey();
