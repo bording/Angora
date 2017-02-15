@@ -29,12 +29,12 @@ namespace Sample
                 { "x-message-ttl", 3000 }
             };
 
-            await channel.QueueDeclare("test1", false, true, false, false, false, arguments);
-            await channel.QueueDeclare("test2", false, true, false, false, true, null);
+            await channel.QueueDeclare("test1", false, true, false, false, arguments);
+            await channel.QueueDeclare("test2", false, true, false, false, null);
 
-            await channel.QueueBind("test2", "test1", "foo", false, null);
+            await channel.QueueBind("test2", "test1", "foo", null);
 
-            var purgeCount = await channel.QueuePurge("test1", false);
+            var purgeCount = await channel.QueuePurge("test1");
 
             Console.WriteLine("Press any key to quit");
             Console.ReadKey();

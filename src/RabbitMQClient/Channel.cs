@@ -135,12 +135,15 @@ namespace RabbitMQClient
             }
         }
 
-       // Queue Send methods
+        // Queue Send methods
 
         TaskCompletionSource<bool> queue_DeclareOk;
-        public async Task QueueDeclare(string queueName, bool passive, bool durable, bool exclusive, bool autoDelete, bool noWait, Dictionary<string, object> arguments)
+        public async Task QueueDeclare(string queueName, bool passive, bool durable, bool exclusive, bool autoDelete, Dictionary<string, object> arguments)
         {
             await semaphore.WaitAsync();
+
+            queue_DeclareOk = new TaskCompletionSource<bool>();
+            expectedMethodId = Command.Queue.DeclareOk;
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -153,27 +156,16 @@ namespace RabbitMQClient
                 buffer.WriteBigEndian(Reserved);
                 buffer.WriteBigEndian(Reserved);
                 buffer.WriteShortString(queueName);
-                buffer.WriteBits(passive, durable, exclusive, autoDelete, noWait);
+                buffer.WriteBits(passive, durable, exclusive, autoDelete, false);
                 buffer.WriteTable(arguments);
 
                 payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
 
                 buffer.WriteBigEndian(FrameEnd);
 
-                if (noWait)
-                {
-                    await buffer.FlushAsync();
-                    semaphore.Release();
-                }
-                else
-                {
-                    queue_DeclareOk = new TaskCompletionSource<bool>();
-                    expectedMethodId = Command.Queue.DeclareOk;
+                await buffer.FlushAsync();
 
-                    await buffer.FlushAsync();
-
-                    await queue_DeclareOk.Task;
-                }
+                await queue_DeclareOk.Task;
             }
             finally
             {
@@ -182,7 +174,7 @@ namespace RabbitMQClient
         }
 
         TaskCompletionSource<bool> queue_BindOk;
-        public async Task QueueBind(string queue, string exchange, string routingKey, bool noWait, Dictionary<string, object> arguments)
+        public async Task QueueBind(string queue, string exchange, string routingKey, Dictionary<string, object> arguments)
         {
             await semaphore.WaitAsync();
 
@@ -202,7 +194,7 @@ namespace RabbitMQClient
                 buffer.WriteShortString(queue);
                 buffer.WriteShortString(exchange);
                 buffer.WriteShortString(routingKey);
-                buffer.WriteBits(noWait);
+                buffer.WriteBits(false);
                 buffer.WriteTable(arguments);
 
                 payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
@@ -220,7 +212,7 @@ namespace RabbitMQClient
         }
 
         TaskCompletionSource<uint> queue_PurgeOk;
-        public async Task<uint> QueuePurge(string queue, bool noWait)
+        public async Task<uint> QueuePurge(string queue)
         {
             await semaphore.WaitAsync();
 
@@ -238,7 +230,7 @@ namespace RabbitMQClient
                 buffer.WriteBigEndian(Reserved);
                 buffer.WriteBigEndian(Reserved);
                 buffer.WriteShortString(queue);
-                buffer.WriteBits(noWait);
+                buffer.WriteBits(false);
 
                 payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
 
@@ -253,7 +245,5 @@ namespace RabbitMQClient
                 socket.ReleaseWriteBuffer();
             }
         }
-
-
     }
 }
