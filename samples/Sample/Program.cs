@@ -29,8 +29,9 @@ namespace Sample
                 { "x-message-ttl", 3000 }
             };
 
-            await channel.QueueDeclare("test1", false, true, false, false, arguments);
-            await channel.QueueDeclare("test2", false, true, false, false, null);
+            var test1Result = await channel.QueueDeclare("test1", false, true, false, false, arguments);
+            var test2Result = await channel.QueueDeclare("test2", false, true, false, false, null);
+            var generatedResult = await channel.QueueDeclare("", false, true, true, false, null);
 
             await channel.QueueBind("test2", "test1", "foo", null);
 

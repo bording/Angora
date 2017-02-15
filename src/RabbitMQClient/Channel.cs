@@ -83,10 +83,27 @@ namespace RabbitMQClient
             }
         }
 
+        public struct Queue_DeclareResult
+        {
+            public string QueueName;
+            public uint MessageCount;
+            public uint ConsumerCount;
+        }
+
         internal void Handle_DeclareOk(ReadableBuffer arguments)
         {
-            //TODO this has arguments to return
-            queue_DeclareOk.SetResult(true);
+            Queue_DeclareResult result;
+            ReadCursor cursor;
+
+            (result.QueueName, cursor) = arguments.ReadShortString();
+            arguments = arguments.Slice(cursor);
+
+            result.MessageCount = arguments.ReadBigEndian<uint>();
+            arguments = arguments.Slice(sizeof(uint));
+
+            result.ConsumerCount = arguments.ReadBigEndian<uint>();
+
+            queue_DeclareOk.SetResult(result);
         }
 
         internal void Handle_BindOk()
@@ -137,12 +154,12 @@ namespace RabbitMQClient
 
         // Queue Send methods
 
-        TaskCompletionSource<bool> queue_DeclareOk;
-        public async Task QueueDeclare(string queueName, bool passive, bool durable, bool exclusive, bool autoDelete, Dictionary<string, object> arguments)
+        TaskCompletionSource<Queue_DeclareResult> queue_DeclareOk;
+        public async Task<Queue_DeclareResult> QueueDeclare(string queueName, bool passive, bool durable, bool exclusive, bool autoDelete, Dictionary<string, object> arguments)
         {
             await semaphore.WaitAsync();
 
-            queue_DeclareOk = new TaskCompletionSource<bool>();
+            queue_DeclareOk = new TaskCompletionSource<Queue_DeclareResult>();
             expectedMethodId = Command.Queue.DeclareOk;
 
             var buffer = await socket.GetWriteBuffer();
@@ -165,7 +182,7 @@ namespace RabbitMQClient
 
                 await buffer.FlushAsync();
 
-                await queue_DeclareOk.Task;
+                return await queue_DeclareOk.Task;
             }
             finally
             {
