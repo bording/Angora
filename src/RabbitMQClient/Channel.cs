@@ -13,7 +13,7 @@ namespace RabbitMQClient
     {
         public ushort ChannelNumber { get; }
 
-        readonly IPipeWriter writer;
+        readonly Socket socket;
 
         TaskCompletionSource<bool> channel_OpenOk;
         TaskCompletionSource<bool> queue_DeclareOk;
@@ -21,9 +21,9 @@ namespace RabbitMQClient
         SemaphoreSlim semaphore;
         ushort expectedMethodId;
 
-        public Channel(IPipeWriter writer, ushort channelNumber)
+        internal Channel(Socket socket, ushort channelNumber)
         {
-            this.writer = writer;
+            this.socket = socket;
             ChannelNumber = channelNumber;
 
             semaphore = new SemaphoreSlim(1, 1);
@@ -82,21 +82,28 @@ namespace RabbitMQClient
             channel_OpenOk = new TaskCompletionSource<bool>();
             expectedMethodId = Command.Channel.OpenOk;
 
-            var buffer = writer.Alloc();
+            var buffer = await socket.GetWriteBufferAsync();
 
-            var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, ChannelNumber);
+            try
+            {
+                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, ChannelNumber);
 
-            buffer.WriteBigEndian(Command.Channel.ClassId);
-            buffer.WriteBigEndian(Command.Channel.Open);
-            buffer.WriteBigEndian(Reserved);
+                buffer.WriteBigEndian(Command.Channel.ClassId);
+                buffer.WriteBigEndian(Command.Channel.Open);
+                buffer.WriteBigEndian(Reserved);
 
-            payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
+                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
 
-            buffer.WriteBigEndian(FrameEnd);
+                buffer.WriteBigEndian(FrameEnd);
 
-            buffer.FlushAsync().Ignore();
+                await buffer.FlushAsync();
 
-            await channel_OpenOk.Task;
+                await channel_OpenOk.Task;
+            }
+            finally
+            {
+                socket.ReleaseWriteBuffer();
+            }
         }
 
         internal void Handle_OpenOk()
@@ -108,35 +115,42 @@ namespace RabbitMQClient
         {
             await semaphore.WaitAsync();
 
-            var buffer = writer.Alloc();
+            var buffer = await socket.GetWriteBufferAsync();
 
-            var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, ChannelNumber);
-
-            buffer.WriteBigEndian(Command.Queue.ClassId);
-            buffer.WriteBigEndian(Command.Queue.Declare);
-            buffer.WriteBigEndian(Reserved);
-            buffer.WriteBigEndian(Reserved);
-            buffer.WriteShortString(queueName);
-            buffer.WriteBits(passive, durable, exclusive, autoDelete, noWait);
-            buffer.WriteTable(arguments);
-
-            payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
-
-            buffer.WriteBigEndian(FrameEnd);
-
-            if (noWait)
+            try
             {
-                await buffer.FlushAsync();
-                semaphore.Release();
+                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, ChannelNumber);
+
+                buffer.WriteBigEndian(Command.Queue.ClassId);
+                buffer.WriteBigEndian(Command.Queue.Declare);
+                buffer.WriteBigEndian(Reserved);
+                buffer.WriteBigEndian(Reserved);
+                buffer.WriteShortString(queueName);
+                buffer.WriteBits(passive, durable, exclusive, autoDelete, noWait);
+                buffer.WriteTable(arguments);
+
+                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
+
+                buffer.WriteBigEndian(FrameEnd);
+
+                if (noWait)
+                {
+                    await buffer.FlushAsync();
+                    semaphore.Release();
+                }
+                else
+                {
+                    queue_DeclareOk = new TaskCompletionSource<bool>();
+                    expectedMethodId = Command.Queue.DeclareOk;
+
+                    await buffer.FlushAsync();
+
+                    await queue_DeclareOk.Task;
+                }
             }
-            else
+            finally
             {
-                queue_DeclareOk = new TaskCompletionSource<bool>();
-                expectedMethodId = Command.Queue.DeclareOk;
-
-                buffer.FlushAsync().Ignore();
-
-                await queue_DeclareOk.Task;
+                socket.ReleaseWriteBuffer();
             }
         }
 

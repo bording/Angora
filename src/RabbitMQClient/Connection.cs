@@ -22,7 +22,7 @@ namespace RabbitMQClient
         readonly string password;
         readonly string virtualHost;
 
-        SocketConnection connection;
+        readonly Socket socket;
 
         ushort nextChannelNumber;
 
@@ -35,12 +35,14 @@ namespace RabbitMQClient
             this.password = password;
             this.virtualHost = virtualHost;
 
+            socket = new Socket();
+
             channels = new Dictionary<ushort, Channel>();
         }
 
         public async Task<Channel> CreateChannel()
         {
-            var channel = new Channel(connection.Output, ++nextChannelNumber);
+            var channel = new Channel(socket, ++nextChannelNumber);
             channels.Add(channel.ChannelNumber, channel);
 
             await channel.Open();
@@ -52,7 +54,7 @@ namespace RabbitMQClient
         {
             await Send_Connection_Close();
 
-            await connection.DisposeAsync();
+            await socket.DisposeAsync();
         }
 
         internal async Task Connect()
@@ -61,7 +63,7 @@ namespace RabbitMQClient
             var address = addresses.First();
             var endpoint = new IPEndPoint(address, 5672);
 
-            connection = await SocketConnection.ConnectAsync(endpoint);
+            await socket.ConnectAsync(endpoint);
 
             Task.Run(() => ReadLoop()).Ignore();
 
@@ -78,7 +80,7 @@ namespace RabbitMQClient
         {
             while (true)
             {
-                var readResult = await connection.Input.ReadAsync();
+                var readResult = await socket.Input.ReadAsync();
                 var buffer = readResult.Buffer;
 
                 if (buffer.IsEmpty && readResult.IsCompleted)
@@ -114,7 +116,7 @@ namespace RabbitMQClient
                         break;
                 }
 
-                connection.Input.Advance(buffer.Start);
+                socket.Input.Advance(buffer.Start);
             }
         }
 
@@ -124,16 +126,23 @@ namespace RabbitMQClient
 
             while (true)
             {
-                var buffer = connection.Output.Alloc();
+                var buffer = await socket.GetWriteBufferAsync();
 
-                uint length = 0;
+                try
+                {
+                    uint length = 0;
 
-                buffer.WriteBigEndian(FrameType.Heartbeat);
-                buffer.WriteBigEndian(connectionChannelNumber);
-                buffer.WriteBigEndian(length);
-                buffer.WriteBigEndian(FrameEnd);
+                    buffer.WriteBigEndian(FrameType.Heartbeat);
+                    buffer.WriteBigEndian(connectionChannelNumber);
+                    buffer.WriteBigEndian(length);
+                    buffer.WriteBigEndian(FrameEnd);
 
-                await buffer.FlushAsync();
+                    await buffer.FlushAsync();
+                }
+                finally
+                {
+                    socket.ReleaseWriteBuffer();
+                }
 
                 await Task.Delay(TimeSpan.FromSeconds(interval));
             }
@@ -247,111 +256,145 @@ namespace RabbitMQClient
         //Connection Send methods
 
         TaskCompletionSource<Connection_StartResult> connection_ProtocolHeader;
-        Task<Connection_StartResult> Send_Connection_ProtocolHeader()
+        async Task<Connection_StartResult> Send_Connection_ProtocolHeader()
         {
             connection_ProtocolHeader = new TaskCompletionSource<Connection_StartResult>();
 
-            var buffer = connection.Output.Alloc();
-            buffer.Write(protocolHeader);
+            var buffer = await socket.GetWriteBufferAsync();
 
-            buffer.FlushAsync();
+            try
+            {
+                buffer.Write(protocolHeader);
 
-            return connection_ProtocolHeader.Task;
+                await buffer.FlushAsync();
+
+                return await connection_ProtocolHeader.Task;
+            }
+            finally
+            {
+                socket.ReleaseWriteBuffer();
+            }
         }
 
         TaskCompletionSource<Connection_TuneResult> connection_StartOk;
-        Task<Connection_TuneResult> Send_Connection_StartOk()
+        async Task<Connection_TuneResult> Send_Connection_StartOk()
         {
             connection_StartOk = new TaskCompletionSource<Connection_TuneResult>();
 
-            var buffer = connection.Output.Alloc();
+            var buffer = await socket.GetWriteBufferAsync();
 
-            var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, connectionChannelNumber);
+            try
+            {
+                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, connectionChannelNumber);
 
-            buffer.WriteBigEndian(Command.Connection.ClassId);
-            buffer.WriteBigEndian(Command.Connection.StartOk);
-            buffer.WriteTable(null); //client-properties
-            buffer.WriteShortString("PLAIN"); //mechanism
-            buffer.WriteLongString($"\0{userName}\0{password}"); //response
-            buffer.WriteShortString("en_US"); //locale
+                buffer.WriteBigEndian(Command.Connection.ClassId);
+                buffer.WriteBigEndian(Command.Connection.StartOk);
+                buffer.WriteTable(null); //client-properties
+                buffer.WriteShortString("PLAIN"); //mechanism
+                buffer.WriteLongString($"\0{userName}\0{password}"); //response
+                buffer.WriteShortString("en_US"); //locale
 
-            payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
+                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
 
-            buffer.WriteBigEndian(FrameEnd);
+                buffer.WriteBigEndian(FrameEnd);
 
-            buffer.FlushAsync();
+                await buffer.FlushAsync();
 
-            return connection_StartOk.Task;
+                return await connection_StartOk.Task;
+            }
+            finally
+            {
+                socket.ReleaseWriteBuffer();
+            }
         }
 
         async Task Send_Connection_TuneOk(ushort channelMax, uint frameMax, ushort heartbeat)
         {
-            var buffer = connection.Output.Alloc();
+            var buffer = await socket.GetWriteBufferAsync();
 
-            var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, connectionChannelNumber);
+            try
+            {
+                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, connectionChannelNumber);
 
-            buffer.WriteBigEndian(Command.Connection.ClassId);
-            buffer.WriteBigEndian(Command.Connection.TuneOk);
-            buffer.WriteBigEndian(channelMax);
-            buffer.WriteBigEndian(frameMax);
-            buffer.WriteBigEndian(heartbeat);
+                buffer.WriteBigEndian(Command.Connection.ClassId);
+                buffer.WriteBigEndian(Command.Connection.TuneOk);
+                buffer.WriteBigEndian(channelMax);
+                buffer.WriteBigEndian(frameMax);
+                buffer.WriteBigEndian(heartbeat);
 
-            payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
+                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
 
-            buffer.WriteBigEndian(FrameEnd);
+                buffer.WriteBigEndian(FrameEnd);
 
-            await buffer.FlushAsync();
-
-            return;
+                await buffer.FlushAsync();
+            }
+            finally
+            {
+                socket.ReleaseWriteBuffer();
+            }
         }
 
         TaskCompletionSource<bool> connection_OpenOk;
-        Task<bool> Send_Connection_Open()
+        async Task<bool> Send_Connection_Open()
         {
             connection_OpenOk = new TaskCompletionSource<bool>();
 
-            var buffer = connection.Output.Alloc();
+            var buffer = await socket.GetWriteBufferAsync();
 
-            var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, connectionChannelNumber);
+            try
+            {
+                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, connectionChannelNumber);
 
-            buffer.WriteBigEndian(Command.Connection.ClassId);
-            buffer.WriteBigEndian(Command.Connection.Open);
-            buffer.WriteShortString(virtualHost);
-            buffer.WriteBigEndian(Reserved);
-            buffer.WriteBigEndian(Reserved);
+                buffer.WriteBigEndian(Command.Connection.ClassId);
+                buffer.WriteBigEndian(Command.Connection.Open);
+                buffer.WriteShortString(virtualHost);
+                buffer.WriteBigEndian(Reserved);
+                buffer.WriteBigEndian(Reserved);
 
-            payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
+                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
 
-            buffer.WriteBigEndian(FrameEnd);
+                buffer.WriteBigEndian(FrameEnd);
 
-            buffer.FlushAsync();
+                await buffer.FlushAsync();
 
-            return connection_OpenOk.Task;
+                return await connection_OpenOk.Task;
+            }
+            finally
+            {
+                socket.ReleaseWriteBuffer();
+            }
         }
 
         TaskCompletionSource<bool> connection_CloseOk;
-        Task Send_Connection_Close(ushort replyCode = ConnectionReplyCode.Success, string replyText = "Goodbye", ushort failingClass = 0, ushort failingMethod = 0)
+        async Task Send_Connection_Close(ushort replyCode = ConnectionReplyCode.Success, string replyText = "Goodbye", ushort failingClass = 0, ushort failingMethod = 0)
         {
             connection_CloseOk = new TaskCompletionSource<bool>();
 
-            var buffer = connection.Output.Alloc();
+            var buffer = await socket.GetWriteBufferAsync();
 
-            var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, connectionChannelNumber);
+            try
+            {
+                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, connectionChannelNumber);
 
-            buffer.WriteBigEndian(Command.Connection.ClassId);
-            buffer.WriteBigEndian(Command.Connection.Close);
-            buffer.WriteBigEndian(replyCode);
-            buffer.WriteShortString(replyText);
-            buffer.WriteBigEndian(failingClass);
-            buffer.WriteBigEndian(failingMethod);
+                buffer.WriteBigEndian(Command.Connection.ClassId);
+                buffer.WriteBigEndian(Command.Connection.Close);
+                buffer.WriteBigEndian(replyCode);
+                buffer.WriteShortString(replyText);
+                buffer.WriteBigEndian(failingClass);
+                buffer.WriteBigEndian(failingMethod);
 
-            payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
+                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
 
-            buffer.WriteBigEndian(FrameEnd);
+                buffer.WriteBigEndian(FrameEnd);
 
-            buffer.FlushAsync();
+                await buffer.FlushAsync();
 
-            return connection_CloseOk.Task;
+                await connection_CloseOk.Task;
+            }
+            finally
+            {
+                socket.ReleaseWriteBuffer();
+            }
         }
     }
 }
