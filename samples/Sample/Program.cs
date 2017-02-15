@@ -32,6 +32,10 @@ namespace Sample
             await channel.QueueDeclare("test1", false, true, false, false, false, arguments);
             await channel.QueueDeclare("test2", false, true, false, false, true, null);
 
+            await channel.QueueBind("test2", "test1", "foo", false, null);
+
+            var purgeCount = await channel.QueuePurge("test1", false);
+
             Console.WriteLine("Press any key to quit");
             Console.ReadKey();
 
