@@ -33,7 +33,8 @@ namespace Sample
             var test2Result = await channel.QueueDeclare("test2", false, true, false, false, null);
             var generatedResult = await channel.QueueDeclare("", false, true, true, false, null);
 
-            await channel.QueueBind("test2", "test1", "foo", null);
+            await channel.QueueBind("test2", "test1", "foo", null); //requires a manually created "test1" exchange
+            await channel.QueueUnbind("test2", "test1", "foo", null);
 
             var purgeCount = await channel.QueuePurge("test1");
 

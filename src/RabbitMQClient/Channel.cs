@@ -77,6 +77,9 @@ namespace RabbitMQClient
                 case Command.Queue.BindOk:
                     Handle_BindOk();
                     break;
+                case Command.Queue.UnbindOk:
+                    Handle_UnbindOk();
+                    break;
                 case Command.Queue.PurgeOk:
                     Handle_PurgeOk(arguments);
                     break;
@@ -109,6 +112,11 @@ namespace RabbitMQClient
         internal void Handle_BindOk()
         {
             queue_BindOk.SetResult(true);
+        }
+
+        internal void Handle_UnbindOk()
+        {
+            queue_UnbindOk.SetResult(true);
         }
 
         internal void Handle_PurgeOk(ReadableBuffer arguments)
@@ -221,6 +229,43 @@ namespace RabbitMQClient
                 await buffer.FlushAsync();
 
                 await queue_BindOk.Task;
+            }
+            finally
+            {
+                socket.ReleaseWriteBuffer();
+            }
+        }
+
+        TaskCompletionSource<bool> queue_UnbindOk;
+        public async Task QueueUnbind(string queue, string exchange, string routingKey, Dictionary<string, object> arguments)
+        {
+            await semaphore.WaitAsync();
+
+            queue_UnbindOk = new TaskCompletionSource<bool>();
+            expectedMethodId = Command.Queue.UnbindOk;
+
+            var buffer = await socket.GetWriteBuffer();
+
+            try
+            {
+                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, ChannelNumber);
+
+                buffer.WriteBigEndian(Command.Queue.ClassId);
+                buffer.WriteBigEndian(Command.Queue.Unbind);
+                buffer.WriteBigEndian(Reserved);
+                buffer.WriteBigEndian(Reserved);
+                buffer.WriteShortString(queue);
+                buffer.WriteShortString(exchange);
+                buffer.WriteShortString(routingKey);
+                buffer.WriteTable(arguments);
+
+                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
+
+                buffer.WriteBigEndian(FrameEnd);
+
+                await buffer.FlushAsync();
+
+                await queue_UnbindOk.Task;
             }
             finally
             {
