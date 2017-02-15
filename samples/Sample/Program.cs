@@ -38,6 +38,8 @@ namespace Sample
 
             var purgeCount = await channel.QueuePurge("test1");
 
+            var deleteCount = await channel.QueueDelete("test1", true, true);
+
             Console.WriteLine("Press any key to quit");
             Console.ReadKey();
 

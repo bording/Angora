@@ -83,6 +83,9 @@ namespace RabbitMQClient
                 case Command.Queue.PurgeOk:
                     Handle_PurgeOk(arguments);
                     break;
+                case Command.Queue.DeleteOk:
+                    Handle_DeleteOk(arguments);
+                    break;
             }
         }
 
@@ -124,6 +127,13 @@ namespace RabbitMQClient
             var messageCount = arguments.ReadBigEndian<uint>();
 
             queue_PurgeOk.SetResult(messageCount);
+        }
+
+        internal void Handle_DeleteOk(ReadableBuffer arguments)
+        {
+            var messageCount = arguments.ReadBigEndian<uint>();
+
+            queue_DeleteOk.SetResult(messageCount);
         }
 
         // Channel Send methods
@@ -301,6 +311,41 @@ namespace RabbitMQClient
                 await buffer.FlushAsync();
 
                 return await queue_PurgeOk.Task;
+            }
+            finally
+            {
+                socket.ReleaseWriteBuffer();
+            }
+        }
+
+        TaskCompletionSource<uint> queue_DeleteOk;
+        public async Task<uint> QueueDelete(string queue, bool onlyIfUnused, bool onlyIfEmpty)
+        {
+            await semaphore.WaitAsync();
+
+            queue_DeleteOk = new TaskCompletionSource<uint>();
+            expectedMethodId = Command.Queue.DeleteOk;
+
+            var buffer = await socket.GetWriteBuffer();
+
+            try
+            {
+                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, ChannelNumber);
+
+                buffer.WriteBigEndian(Command.Queue.ClassId);
+                buffer.WriteBigEndian(Command.Queue.Delete);
+                buffer.WriteBigEndian(Reserved);
+                buffer.WriteBigEndian(Reserved);
+                buffer.WriteShortString(queue);
+                buffer.WriteBits(onlyIfEmpty, onlyIfUnused);
+
+                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
+
+                buffer.WriteBigEndian(FrameEnd);
+
+                await buffer.FlushAsync();
+
+                return await queue_DeleteOk.Task;
             }
             finally
             {
