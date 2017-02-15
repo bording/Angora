@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO.Pipelines;
-using System.Linq;
+﻿using System.IO.Pipelines;
 using System.Threading.Tasks;
 
 namespace RabbitMQClient
