@@ -191,7 +191,7 @@ namespace RabbitMQClient
                 buffer.WriteBigEndian(Reserved);
                 buffer.WriteBigEndian(Reserved);
                 buffer.WriteShortString(queueName);
-                buffer.WriteBits(passive, durable, exclusive, autoDelete, false);
+                buffer.WriteBits(passive, durable, exclusive, autoDelete);
                 buffer.WriteTable(arguments);
 
                 payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
@@ -229,7 +229,7 @@ namespace RabbitMQClient
                 buffer.WriteShortString(queue);
                 buffer.WriteShortString(exchange);
                 buffer.WriteShortString(routingKey);
-                buffer.WriteBits(false);
+                buffer.WriteBits();
                 buffer.WriteTable(arguments);
 
                 payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
@@ -302,7 +302,7 @@ namespace RabbitMQClient
                 buffer.WriteBigEndian(Reserved);
                 buffer.WriteBigEndian(Reserved);
                 buffer.WriteShortString(queue);
-                buffer.WriteBits(false);
+                buffer.WriteBits();
 
                 payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
 
