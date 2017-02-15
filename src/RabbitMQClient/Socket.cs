@@ -16,12 +16,12 @@ namespace RabbitMQClient
 
         public IPipeReader Input => connection.Input;
 
-        public async Task ConnectAsync(IPEndPoint endpoint)
+        public async Task Connect(IPEndPoint endpoint)
         {
             connection = await SocketConnection.ConnectAsync(endpoint);
         }
 
-        public async Task<WritableBuffer> GetWriteBufferAsync(int minimumSize = 0)
+        public async Task<WritableBuffer> GetWriteBuffer(int minimumSize = 0)
         {
             await semaphore.WaitAsync();
 
@@ -33,6 +33,6 @@ namespace RabbitMQClient
             semaphore.Release();
         }
 
-        public Task DisposeAsync() => connection.DisposeAsync();
+        public Task Close() => connection.DisposeAsync();
     }
 }

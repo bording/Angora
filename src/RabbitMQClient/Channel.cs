@@ -82,7 +82,7 @@ namespace RabbitMQClient
             channel_OpenOk = new TaskCompletionSource<bool>();
             expectedMethodId = Command.Channel.OpenOk;
 
-            var buffer = await socket.GetWriteBufferAsync();
+            var buffer = await socket.GetWriteBuffer();
 
             try
             {
@@ -115,7 +115,7 @@ namespace RabbitMQClient
         {
             await semaphore.WaitAsync();
 
-            var buffer = await socket.GetWriteBufferAsync();
+            var buffer = await socket.GetWriteBuffer();
 
             try
             {

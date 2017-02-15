@@ -54,7 +54,7 @@ namespace RabbitMQClient
         {
             await Send_Connection_Close();
 
-            await socket.DisposeAsync();
+            await socket.Close();
         }
 
         internal async Task Connect()
@@ -63,7 +63,7 @@ namespace RabbitMQClient
             var address = addresses.First();
             var endpoint = new IPEndPoint(address, 5672);
 
-            await socket.ConnectAsync(endpoint);
+            await socket.Connect(endpoint);
 
             Task.Run(() => ReadLoop()).Ignore();
 
@@ -126,7 +126,7 @@ namespace RabbitMQClient
 
             while (true)
             {
-                var buffer = await socket.GetWriteBufferAsync();
+                var buffer = await socket.GetWriteBuffer();
 
                 try
                 {
@@ -260,7 +260,7 @@ namespace RabbitMQClient
         {
             connection_ProtocolHeader = new TaskCompletionSource<Connection_StartResult>();
 
-            var buffer = await socket.GetWriteBufferAsync();
+            var buffer = await socket.GetWriteBuffer();
 
             try
             {
@@ -281,7 +281,7 @@ namespace RabbitMQClient
         {
             connection_StartOk = new TaskCompletionSource<Connection_TuneResult>();
 
-            var buffer = await socket.GetWriteBufferAsync();
+            var buffer = await socket.GetWriteBuffer();
 
             try
             {
@@ -310,7 +310,7 @@ namespace RabbitMQClient
 
         async Task Send_Connection_TuneOk(ushort channelMax, uint frameMax, ushort heartbeat)
         {
-            var buffer = await socket.GetWriteBufferAsync();
+            var buffer = await socket.GetWriteBuffer();
 
             try
             {
@@ -339,7 +339,7 @@ namespace RabbitMQClient
         {
             connection_OpenOk = new TaskCompletionSource<bool>();
 
-            var buffer = await socket.GetWriteBufferAsync();
+            var buffer = await socket.GetWriteBuffer();
 
             try
             {
@@ -370,7 +370,7 @@ namespace RabbitMQClient
         {
             connection_CloseOk = new TaskCompletionSource<bool>();
 
-            var buffer = await socket.GetWriteBufferAsync();
+            var buffer = await socket.GetWriteBuffer();
 
             try
             {
