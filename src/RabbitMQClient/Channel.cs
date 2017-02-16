@@ -84,14 +84,22 @@ namespace RabbitMQClient
             switch (methodId)
             {
                 case Command.Exchange.DeclareOk:
-                    Handle_Exchange_DeclareOk(arguments);
+                    Handle_Exchange_DeclareOk();
+                    break;
+                case Command.Exchange.DeleteOk:
+                    Handle_Exchange_DeleteOk();
                     break;
             }
         }
 
-        void Handle_Exchange_DeclareOk(ReadableBuffer arguments)
+        void Handle_Exchange_DeclareOk()
         {
             exchange_DeclareOk.SetResult(true);
+        }
+
+        void Handle_Exchange_DeleteOk()
+        {
+            exchange_DeleteOk.SetResult(true);
         }
 
         void ParseQueueMethod(ushort methodId, ReadableBuffer arguments)
@@ -264,6 +272,41 @@ namespace RabbitMQClient
                 await buffer.FlushAsync();
 
                 await exchange_DeclareOk.Task;
+            }
+            finally
+            {
+                socket.ReleaseWriteBuffer();
+            }
+        }
+
+        TaskCompletionSource<bool> exchange_DeleteOk;
+        public async Task ExchangeDelete(string exchange, bool onlyIfUnused)
+        {
+            await semaphore.WaitAsync();
+
+            exchange_DeleteOk = new TaskCompletionSource<bool>();
+            expectedMethodId = Command.Exchange.DeleteOk;
+
+            var buffer = await socket.GetWriteBuffer();
+
+            try
+            {
+                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, ChannelNumber);
+
+                buffer.WriteBigEndian(Command.Exchange.ClassId);
+                buffer.WriteBigEndian(Command.Exchange.Delete);
+                buffer.WriteBigEndian(Reserved);
+                buffer.WriteBigEndian(Reserved);
+                buffer.WriteShortString(exchange);
+                buffer.WriteBits(onlyIfUnused);
+
+                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
+
+                buffer.WriteBigEndian(FrameEnd);
+
+                await buffer.FlushAsync();
+
+                await exchange_DeleteOk.Task;
             }
             finally
             {

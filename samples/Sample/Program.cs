@@ -34,6 +34,9 @@ namespace Sample
             var generatedResult = await channel.QueueDeclare("", false, true, true, false, null);
 
             await channel.ExchangeDeclare("test1", "fanout", false, true, false, false, null);
+            await channel.ExchangeDeclare("test2", "fanout", false, true, false, false, null);
+
+            await channel.ExchangeDeclare("test-internal", "fanout", false, true, false, true, null);
 
             await channel.QueueBind("test1", "test1", "", null);
 
@@ -43,6 +46,8 @@ namespace Sample
             var purgeCount = await channel.QueuePurge("test2");
 
             var deleteCount = await channel.QueueDelete("test2", true, true);
+
+            await channel.ExchangeDelete("test2", false);
 
             Console.WriteLine("Press any key to quit");
             Console.ReadKey();
