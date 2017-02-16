@@ -44,7 +44,7 @@ namespace RabbitMQClient
             expectedMethodId = methodId;
         }
 
-        internal void ParseMethod(ushort classId, ushort methodId, ReadableBuffer arguments)
+        internal void HandleIncomingMethod(ushort classId, ushort methodId, ReadableBuffer arguments)
         {
             try
             {
@@ -56,19 +56,19 @@ namespace RabbitMQClient
                 switch (classId)
                 {
                     case Command.Channel.ClassId:
-                        ParseChannelMethod(methodId, arguments);
+                        HandleIncomingMethod(methodId, arguments);
                         break;
 
                     case Command.Exchange.ClassId:
-                        Exchange.ParseExchangeMethod(methodId, arguments);
+                        Exchange.HandleIncomingMethod(methodId, arguments);
                         break;
 
                     case Command.Queue.ClassId:
-                        Queue.ParseQueueMethod(methodId, arguments);
+                        Queue.HandleIncomingMethod(methodId, arguments);
                         break;
 
                     case Command.Basic.ClassId:
-                        Basic.RouteMethod(methodId, arguments);
+                        Basic.HandleIncomingMethod(methodId, arguments);
                         break;
                 }
             }
@@ -78,7 +78,7 @@ namespace RabbitMQClient
             }
         }
 
-        void ParseChannelMethod(ushort methodId, ReadableBuffer arguments)
+        void HandleIncomingMethod(ushort methodId, ReadableBuffer arguments)
         {
             switch (methodId)
             {

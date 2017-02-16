@@ -30,7 +30,7 @@ namespace RabbitMQClient
             SetExpectedMethodId = setExpectedMethodId;
         }
 
-        internal void ParseQueueMethod(ushort methodId, ReadableBuffer arguments)
+        internal void HandleIncomingMethod(ushort methodId, ReadableBuffer arguments)
         {
             switch (methodId)
             {

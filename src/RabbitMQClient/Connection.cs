@@ -112,7 +112,7 @@ namespace RabbitMQClient
                 switch (frameType)
                 {
                     case FrameType.Method:
-                        ParseMethodFrame(channelNumber, payload);
+                        HandleIncomingMethodFrame(channelNumber, payload);
                         break;
                 }
 
@@ -148,7 +148,7 @@ namespace RabbitMQClient
             }
         }
 
-        void ParseMethodFrame(ushort channelNumber, ReadableBuffer payload)
+        void HandleIncomingMethodFrame(ushort channelNumber, ReadableBuffer payload)
         {
             var classId = payload.ReadBigEndian<ushort>();
             payload = payload.Slice(sizeof(ushort));
@@ -158,15 +158,15 @@ namespace RabbitMQClient
 
             if (classId == Command.Connection.ClassId) //TODO validate channel 0
             {
-                ParseConnectionMethod(methodId, payload);
+                HandleIncomingMethod(methodId, payload);
             }
             else
             {
-                channels[channelNumber].ParseMethod(classId, methodId, payload);
+                channels[channelNumber].HandleIncomingMethod(classId, methodId, payload);
             }
         }
 
-        void ParseConnectionMethod(ushort methodId, ReadableBuffer arguments)
+        void HandleIncomingMethod(ushort methodId, ReadableBuffer arguments)
         {
             switch (methodId)
             {
