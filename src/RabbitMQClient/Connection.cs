@@ -24,9 +24,15 @@ namespace RabbitMQClient
 
         readonly Socket socket;
 
-        ushort nextChannelNumber;
-
         readonly Dictionary<ushort, Channel> channels;
+
+        readonly TaskCompletionSource<StartResult> startSent = new TaskCompletionSource<StartResult>();
+        readonly TaskCompletionSource<bool> openOk = new TaskCompletionSource<bool>();
+        readonly TaskCompletionSource<bool> closeOk = new TaskCompletionSource<bool>();
+        readonly TaskCompletionSource<bool> readyToOpenConnection = new TaskCompletionSource<bool>();
+
+        ushort nextChannelNumber;
+        bool isOpen;
 
         internal Connection(string hostName, string userName, string password, string virtualHost)
         {
@@ -38,6 +44,24 @@ namespace RabbitMQClient
             socket = new Socket();
 
             channels = new Dictionary<ushort, Channel>();
+        }
+
+        internal async Task Connect()
+        {
+            var addresses = await Dns.GetHostAddressesAsync(hostName);
+            var address = addresses.First();
+            var endpoint = new IPEndPoint(address, 5672);
+
+            await socket.Connect(endpoint);
+
+            Task.Run(() => ReadLoop()).Ignore();
+
+            var startResult = await Send_ProtocolHeader();
+            await Send_StartOk();
+
+            await readyToOpenConnection.Task;
+
+            isOpen = await Send_Open();
         }
 
         public async Task<Channel> CreateChannel()
@@ -52,28 +76,18 @@ namespace RabbitMQClient
 
         public async Task Close()
         {
-            await Send_Connection_Close();
+            if (isOpen)
+            {
+                isOpen = false;
 
-            await socket.Close();
-        }
+                await Send_Close();
 
-        internal async Task Connect()
-        {
-            var addresses = await Dns.GetHostAddressesAsync(hostName);
-            var address = addresses.First();
-            var endpoint = new IPEndPoint(address, 5672);
-
-            await socket.Connect(endpoint);
-
-            Task.Run(() => ReadLoop()).Ignore();
-
-            var startResult = await Send_Connection_ProtocolHeader();
-            var tuneResult = await Send_Connection_StartOk();
-
-            Task.Run(() => SendHeartbeats(tuneResult.Heartbeat)).Ignore();
-
-            await Send_Connection_TuneOk(tuneResult.ChannelMax, tuneResult.FrameMax, tuneResult.Heartbeat);
-            var openResult = await Send_Connection_Open();
+                await socket.Close();
+            }
+            else
+            {
+                throw new Exception("already closed");
+            }
         }
 
         async Task ReadLoop()
@@ -112,7 +126,7 @@ namespace RabbitMQClient
                 switch (frameType)
                 {
                     case FrameType.Method:
-                        HandleIncomingMethodFrame(channelNumber, payload);
+                        await HandleIncomingMethodFrame(channelNumber, payload);
                         break;
                 }
 
@@ -148,7 +162,7 @@ namespace RabbitMQClient
             }
         }
 
-        void HandleIncomingMethodFrame(ushort channelNumber, ReadableBuffer payload)
+        Task HandleIncomingMethodFrame(ushort channelNumber, ReadableBuffer payload)
         {
             var classId = payload.ReadBigEndian<ushort>();
             payload = payload.Slice(sizeof(ushort));
@@ -158,39 +172,40 @@ namespace RabbitMQClient
 
             if (classId == Command.Connection.ClassId) //TODO validate channel 0
             {
-                HandleIncomingMethod(methodId, payload);
+                return HandleIncomingMethod(methodId, payload);
             }
             else
             {
                 channels[channelNumber].HandleIncomingMethod(classId, methodId, payload);
             }
+
+            return Task.CompletedTask;
         }
 
-        void HandleIncomingMethod(ushort methodId, ReadableBuffer arguments)
+        Task HandleIncomingMethod(ushort methodId, ReadableBuffer arguments)
         {
             switch (methodId)
             {
                 case Command.Connection.Start:
-                    Handle_Connection_Start(arguments);
+                    Handle_Start(arguments);
                     break;
 
                 case Command.Connection.Tune:
-                    Handle_Connection_Tune(arguments);
-                    break;
+                    return Handle_Tune(arguments);
 
                 case Command.Connection.OpenOk:
-                    Handle_Connection_OpenOk();
+                    Handle_OpenOk();
                     break;
 
                 case Command.Connection.CloseOk:
-                    Handle_Connection_CloseOk();
+                    Handle_CloseOk();
                     break;
             }
+
+            return Task.CompletedTask;
         }
 
-        // Connection Handle methods
-
-        struct Connection_StartResult
+        struct StartResult
         {
             public byte VersionMajor;
             public byte VersionMinor;
@@ -199,9 +214,9 @@ namespace RabbitMQClient
             public string Locales;
         }
 
-        void Handle_Connection_Start(ReadableBuffer arguments)
+        void Handle_Start(ReadableBuffer arguments)
         {
-            Connection_StartResult result;
+            StartResult result;
             ReadCursor cursor;
 
             result.VersionMajor = arguments.ReadBigEndian<byte>();
@@ -218,48 +233,36 @@ namespace RabbitMQClient
 
             (result.Locales, cursor) = arguments.ReadLongString();
 
-            connection_ProtocolHeader.SetResult(result);
+            startSent.SetResult(result);
         }
 
-        struct Connection_TuneResult
+        async Task Handle_Tune(ReadableBuffer arguments)
         {
-            public ushort ChannelMax;
-            public uint FrameMax;
-            public ushort Heartbeat;
-        }
-
-        void Handle_Connection_Tune(ReadableBuffer arguments)
-        {
-            Connection_TuneResult result;
-
-            result.ChannelMax = arguments.ReadBigEndian<ushort>();
+            var channelMax = arguments.ReadBigEndian<ushort>();
             arguments = arguments.Slice(sizeof(ushort));
 
-            result.FrameMax = arguments.ReadBigEndian<uint>();
+            var frameMax = arguments.ReadBigEndian<uint>();
             arguments = arguments.Slice(sizeof(uint));
 
-            result.Heartbeat = arguments.ReadBigEndian<ushort>();
+            var heartbeat = arguments.ReadBigEndian<ushort>();
 
-            connection_StartOk.SetResult(result);
+            Task.Run(() => SendHeartbeats(heartbeat)).Ignore();
+
+            await Send_TuneOk(channelMax, frameMax, heartbeat);
         }
 
-        void Handle_Connection_OpenOk()
+        void Handle_OpenOk()
         {
-            connection_OpenOk.SetResult(true);
+            openOk.SetResult(true);
         }
 
-        void Handle_Connection_CloseOk()
+        void Handle_CloseOk()
         {
-            connection_CloseOk.SetResult(true);
+            closeOk.SetResult(true);
         }
 
-        //Connection Send methods
-
-        TaskCompletionSource<Connection_StartResult> connection_ProtocolHeader;
-        async Task<Connection_StartResult> Send_Connection_ProtocolHeader()
+        async Task<StartResult> Send_ProtocolHeader()
         {
-            connection_ProtocolHeader = new TaskCompletionSource<Connection_StartResult>();
-
             var buffer = await socket.GetWriteBuffer();
 
             try
@@ -268,7 +271,7 @@ namespace RabbitMQClient
 
                 await buffer.FlushAsync();
 
-                return await connection_ProtocolHeader.Task;
+                return await startSent.Task;
             }
             finally
             {
@@ -276,11 +279,8 @@ namespace RabbitMQClient
             }
         }
 
-        TaskCompletionSource<Connection_TuneResult> connection_StartOk;
-        async Task<Connection_TuneResult> Send_Connection_StartOk()
+        async Task Send_StartOk()
         {
-            connection_StartOk = new TaskCompletionSource<Connection_TuneResult>();
-
             var buffer = await socket.GetWriteBuffer();
 
             try
@@ -299,8 +299,6 @@ namespace RabbitMQClient
                 buffer.WriteBigEndian(FrameEnd);
 
                 await buffer.FlushAsync();
-
-                return await connection_StartOk.Task;
             }
             finally
             {
@@ -308,7 +306,7 @@ namespace RabbitMQClient
             }
         }
 
-        async Task Send_Connection_TuneOk(ushort channelMax, uint frameMax, ushort heartbeat)
+        async Task Send_TuneOk(ushort channelMax, uint frameMax, ushort heartbeat)
         {
             var buffer = await socket.GetWriteBuffer();
 
@@ -327,6 +325,8 @@ namespace RabbitMQClient
                 buffer.WriteBigEndian(FrameEnd);
 
                 await buffer.FlushAsync();
+
+                readyToOpenConnection.SetResult(true);
             }
             finally
             {
@@ -334,11 +334,8 @@ namespace RabbitMQClient
             }
         }
 
-        TaskCompletionSource<bool> connection_OpenOk;
-        async Task<bool> Send_Connection_Open()
+        async Task<bool> Send_Open()
         {
-            connection_OpenOk = new TaskCompletionSource<bool>();
-
             var buffer = await socket.GetWriteBuffer();
 
             try
@@ -357,7 +354,7 @@ namespace RabbitMQClient
 
                 await buffer.FlushAsync();
 
-                return await connection_OpenOk.Task;
+                return await openOk.Task;
             }
             finally
             {
@@ -365,11 +362,8 @@ namespace RabbitMQClient
             }
         }
 
-        TaskCompletionSource<bool> connection_CloseOk;
-        async Task Send_Connection_Close(ushort replyCode = ConnectionReplyCode.Success, string replyText = "Goodbye", ushort failingClass = 0, ushort failingMethod = 0)
+        async Task Send_Close(ushort replyCode = ConnectionReplyCode.Success, string replyText = "Goodbye", ushort failingClass = 0, ushort failingMethod = 0)
         {
-            connection_CloseOk = new TaskCompletionSource<bool>();
-
             var buffer = await socket.GetWriteBuffer();
 
             try
@@ -389,7 +383,7 @@ namespace RabbitMQClient
 
                 await buffer.FlushAsync();
 
-                await connection_CloseOk.Task;
+                await closeOk.Task;
             }
             finally
             {
