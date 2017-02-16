@@ -69,6 +69,20 @@
                 public const ushort CloseOk = 41;
             }
 
+            public static class Exchange
+            {
+                public const ushort ClassId = 40;
+
+                public const ushort Declare = 10;
+                public const ushort DeclareOk = 11;
+                public const ushort Delete = 20;
+                public const ushort DeleteOk = 21;
+                public const ushort Bind = 30;
+                public const ushort BindOk = 31;
+                public const ushort Unbind = 40;
+                public const ushort UnbindOk = 51;
+            }
+
             public static class Queue
             {
                 public const ushort ClassId = 50;

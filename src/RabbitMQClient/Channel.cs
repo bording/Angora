@@ -41,6 +41,10 @@ namespace RabbitMQClient
                         ParseChannelMethod(methodId, arguments);
                         break;
 
+                    case Command.Exchange.ClassId:
+                        ParseExchangeMethod(methodId, arguments);
+                        break;
+
                     case Command.Queue.ClassId:
                         ParseQueueMethod(methodId, arguments);
                         break;
@@ -52,47 +56,62 @@ namespace RabbitMQClient
             }
         }
 
-        internal void ParseChannelMethod(ushort methodId, ReadableBuffer arguments)
+        void ParseChannelMethod(ushort methodId, ReadableBuffer arguments)
         {
             switch (methodId)
             {
                 case Command.Channel.OpenOk:
-                    Handle_OpenOk();
+                    Handle_Channel_OpenOk();
                     break;
                 case Command.Channel.CloseOk:
-                    Handle_CloseOk();
+                    Handle_Channel_CloseOk();
                     break;
             }
         }
 
-        internal void Handle_OpenOk()
+        void Handle_Channel_OpenOk()
         {
             channel_OpenOk.SetResult(true);
         }
 
-        internal void Handle_CloseOk()
+        void Handle_Channel_CloseOk()
         {
             channel_CloseOk.SetResult(true);
         }
 
-        internal void ParseQueueMethod(ushort methodId, ReadableBuffer arguments)
+        void ParseExchangeMethod(ushort methodId, ReadableBuffer arguments)
+        {
+            switch (methodId)
+            {
+                case Command.Exchange.DeclareOk:
+                    Handle_Exchange_DeclareOk(arguments);
+                    break;
+            }
+        }
+
+        void Handle_Exchange_DeclareOk(ReadableBuffer arguments)
+        {
+
+        }
+
+        void ParseQueueMethod(ushort methodId, ReadableBuffer arguments)
         {
             switch (methodId)
             {
                 case Command.Queue.DeclareOk:
-                    Handle_DeclareOk(arguments);
+                    Handle_Queue_DeclareOk(arguments);
                     break;
                 case Command.Queue.BindOk:
-                    Handle_BindOk();
+                    Handle_Queue_BindOk();
                     break;
                 case Command.Queue.UnbindOk:
-                    Handle_UnbindOk();
+                    Handle_Queue_UnbindOk();
                     break;
                 case Command.Queue.PurgeOk:
-                    Handle_PurgeOk(arguments);
+                    Handle_Queue_PurgeOk(arguments);
                     break;
                 case Command.Queue.DeleteOk:
-                    Handle_DeleteOk(arguments);
+                    Handle_Queue_DeleteOk(arguments);
                     break;
             }
         }
@@ -104,7 +123,7 @@ namespace RabbitMQClient
             public uint ConsumerCount;
         }
 
-        internal void Handle_DeclareOk(ReadableBuffer arguments)
+        void Handle_Queue_DeclareOk(ReadableBuffer arguments)
         {
             Queue_DeclareResult result;
             ReadCursor cursor;
@@ -120,24 +139,24 @@ namespace RabbitMQClient
             queue_DeclareOk.SetResult(result);
         }
 
-        internal void Handle_BindOk()
+        void Handle_Queue_BindOk()
         {
             queue_BindOk.SetResult(true);
         }
 
-        internal void Handle_UnbindOk()
+        void Handle_Queue_UnbindOk()
         {
             queue_UnbindOk.SetResult(true);
         }
 
-        internal void Handle_PurgeOk(ReadableBuffer arguments)
+        void Handle_Queue_PurgeOk(ReadableBuffer arguments)
         {
             var messageCount = arguments.ReadBigEndian<uint>();
 
             queue_PurgeOk.SetResult(messageCount);
         }
 
-        internal void Handle_DeleteOk(ReadableBuffer arguments)
+        void Handle_Queue_DeleteOk(ReadableBuffer arguments)
         {
             var messageCount = arguments.ReadBigEndian<uint>();
 
