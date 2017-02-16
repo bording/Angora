@@ -13,12 +13,9 @@ namespace RabbitMQClient
     {
         public ushort ChannelNumber { get; }
 
-        public Exchange Exchange => exchange;
+        public Exchange Exchange { get; }
 
-        public Queue Queue => queue;
-
-        readonly Exchange exchange;
-        readonly Queue queue;
+        public Queue Queue { get; }
 
         readonly Socket socket;
         readonly SemaphoreSlim semaphore;
@@ -35,8 +32,8 @@ namespace RabbitMQClient
 
             semaphore = new SemaphoreSlim(1, 1);
 
-            exchange = new Exchange(channelNumber, socket, semaphore, SetExpectedMethodId);
-            queue = new Queue(channelNumber, socket, semaphore, SetExpectedMethodId);
+            Exchange = new Exchange(channelNumber, socket, semaphore, SetExpectedMethodId);
+            Queue = new Queue(channelNumber, socket, semaphore, SetExpectedMethodId);
         }
 
         void SetExpectedMethodId(ushort methodId)
@@ -60,11 +57,11 @@ namespace RabbitMQClient
                         break;
 
                     case Command.Exchange.ClassId:
-                        exchange.ParseExchangeMethod(methodId, arguments);
+                        Exchange.ParseExchangeMethod(methodId, arguments);
                         break;
 
                     case Command.Queue.ClassId:
-                        queue.ParseQueueMethod(methodId, arguments);
+                        Queue.ParseQueueMethod(methodId, arguments);
                         break;
                 }
             }
