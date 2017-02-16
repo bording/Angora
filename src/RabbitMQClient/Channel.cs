@@ -91,7 +91,7 @@ namespace RabbitMQClient
 
         void Handle_Exchange_DeclareOk(ReadableBuffer arguments)
         {
-
+            exchange_DeclareOk.SetResult(true);
         }
 
         void ParseQueueMethod(ushort methodId, ReadableBuffer arguments)
@@ -225,6 +225,45 @@ namespace RabbitMQClient
                 await buffer.FlushAsync();
 
                 await channel_CloseOk.Task;
+            }
+            finally
+            {
+                socket.ReleaseWriteBuffer();
+            }
+        }
+
+        // Exchange Send methods
+
+        TaskCompletionSource<bool> exchange_DeclareOk;
+        public async Task ExchangeDeclare(string exchangeName, string type, bool passive, bool durable, bool autoDelete, bool @internal, Dictionary<string, object> arguments)
+        {
+            await semaphore.WaitAsync();
+
+            exchange_DeclareOk = new TaskCompletionSource<bool>();
+            expectedMethodId = Command.Exchange.DeclareOk;
+
+            var buffer = await socket.GetWriteBuffer();
+
+            try
+            {
+                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, ChannelNumber);
+
+                buffer.WriteBigEndian(Command.Exchange.ClassId);
+                buffer.WriteBigEndian(Command.Exchange.Declare);
+                buffer.WriteBigEndian(Reserved);
+                buffer.WriteBigEndian(Reserved);
+                buffer.WriteShortString(exchangeName);
+                buffer.WriteShortString(type);
+                buffer.WriteBits(passive, durable, autoDelete, @internal);
+                buffer.WriteTable(arguments);
+
+                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
+
+                buffer.WriteBigEndian(FrameEnd);
+
+                await buffer.FlushAsync();
+
+                await exchange_DeclareOk.Task;
             }
             finally
             {
