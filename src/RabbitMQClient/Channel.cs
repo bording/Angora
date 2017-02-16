@@ -17,6 +17,8 @@ namespace RabbitMQClient
 
         public Queue Queue { get; }
 
+        public Basic Basic { get; }
+
         readonly Socket socket;
         readonly SemaphoreSlim semaphore;
 
@@ -34,6 +36,7 @@ namespace RabbitMQClient
 
             Exchange = new Exchange(channelNumber, socket, semaphore, SetExpectedMethodId);
             Queue = new Queue(channelNumber, socket, semaphore, SetExpectedMethodId);
+            Basic = new Basic(channelNumber, socket, semaphore, SetExpectedMethodId);
         }
 
         void SetExpectedMethodId(ushort methodId)
@@ -62,6 +65,10 @@ namespace RabbitMQClient
 
                     case Command.Queue.ClassId:
                         Queue.ParseQueueMethod(methodId, arguments);
+                        break;
+
+                    case Command.Basic.ClassId:
+                        Basic.RouteMethod(methodId, arguments);
                         break;
                 }
             }
