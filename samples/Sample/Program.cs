@@ -29,29 +29,29 @@ namespace Sample
                 { "x-message-ttl", 3000 }
             };
 
-            var test1Result = await channel.QueueDeclare("test1", false, true, false, false, arguments);
-            var test2Result = await channel.QueueDeclare("test2", false, true, false, false, null);
-            var generatedResult = await channel.QueueDeclare("", false, true, true, false, null);
+            var test1Result = await channel.Queue.Declare("test1", false, true, false, false, arguments);
+            var test2Result = await channel.Queue.Declare("test2", false, true, false, false, null);
+            var generatedResult = await channel.Queue.Declare("", false, true, true, false, null);
 
-            await channel.ExchangeDeclare("test1", "fanout", false, true, false, false, null);
-            await channel.ExchangeDeclare("test2", "fanout", false, true, false, false, null);
-            await channel.ExchangeDeclare("test3", "fanout", false, true, false, false, null);
+            await channel.Exchange.Declare("test1", "fanout", false, true, false, false, null);
+            await channel.Exchange.Declare("test2", "fanout", false, true, false, false, null);
+            await channel.Exchange.Declare("test3", "fanout", false, true, false, false, null);
 
-            await channel.ExchangeBind("test1", "test3", "key", arguments);
-            await channel.ExchangeUnbind("test1", "test3", "key", arguments);
+            await channel.Exchange.Bind("test1", "test3", "key", arguments);
+            await channel.Exchange.Unbind("test1", "test3", "key", arguments);
 
-            await channel.ExchangeDeclare("test-internal", "fanout", false, true, false, true, null);
+            await channel.Exchange.Declare("test-internal", "fanout", false, true, false, true, null);
 
-            await channel.QueueBind("test1", "test1", "", null);
+            await channel.Queue.Bind("test1", "test1", "", null);
 
-            await channel.QueueBind("test2", "test1", "foo", null);
-            await channel.QueueUnbind("test2", "test1", "foo", null);
+            await channel.Queue.Bind("test2", "test1", "foo", null);
+            await channel.Queue.Unbind("test2", "test1", "foo", null);
 
-            var purgeCount = await channel.QueuePurge("test2");
+            var purgeCount = await channel.Queue.Purge("test2");
 
-            var deleteCount = await channel.QueueDelete("test2", true, true);
+            var deleteCount = await channel.Queue.Delete("test2", true, true);
 
-            await channel.ExchangeDelete("test2", false);
+            await channel.Exchange.Delete("test2", false);
 
             Console.WriteLine("Press any key to quit");
             Console.ReadKey();
