@@ -92,6 +92,9 @@ namespace RabbitMQClient
                 case Command.Exchange.BindOk:
                     Handle_Exchange_BindOk();
                     break;
+                case Command.Exchange.UnbindOk:
+                    Handle_Exchange_UnbindOk();
+                    break;
             }
         }
 
@@ -108,6 +111,11 @@ namespace RabbitMQClient
         void Handle_Exchange_BindOk()
         {
             exchange_BindOk.SetResult(true);
+        }
+
+        void Handle_Exchange_UnbindOk()
+        {
+            exchange_UnbindOk.SetResult(true);
         }
 
         void ParseQueueMethod(ushort methodId, ReadableBuffer arguments)
@@ -353,6 +361,44 @@ namespace RabbitMQClient
                 await buffer.FlushAsync();
 
                 await exchange_BindOk.Task;
+            }
+            finally
+            {
+                socket.ReleaseWriteBuffer();
+            }
+        }
+
+        TaskCompletionSource<bool> exchange_UnbindOk;
+        public async Task ExchangeUnbind(string source, string destination, string routingKey, Dictionary<string, object> arguments)
+        {
+            await semaphore.WaitAsync();
+
+            exchange_UnbindOk = new TaskCompletionSource<bool>();
+            expectedMethodId = Command.Exchange.UnbindOk;
+
+            var buffer = await socket.GetWriteBuffer();
+
+            try
+            {
+                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, ChannelNumber);
+
+                buffer.WriteBigEndian(Command.Exchange.ClassId);
+                buffer.WriteBigEndian(Command.Exchange.Unbind);
+                buffer.WriteBigEndian(Reserved);
+                buffer.WriteBigEndian(Reserved);
+                buffer.WriteShortString(source);
+                buffer.WriteShortString(destination);
+                buffer.WriteShortString(routingKey);
+                buffer.WriteBits();
+                buffer.WriteTable(arguments);
+
+                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
+
+                buffer.WriteBigEndian(FrameEnd);
+
+                await buffer.FlushAsync();
+
+                await exchange_UnbindOk.Task;
             }
             finally
             {

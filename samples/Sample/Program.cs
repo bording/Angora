@@ -38,6 +38,7 @@ namespace Sample
             await channel.ExchangeDeclare("test3", "fanout", false, true, false, false, null);
 
             await channel.ExchangeBind("test1", "test3", "key", arguments);
+            await channel.ExchangeUnbind("test1", "test3", "key", arguments);
 
             await channel.ExchangeDeclare("test-internal", "fanout", false, true, false, true, null);
 
