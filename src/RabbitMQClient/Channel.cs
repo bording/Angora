@@ -59,12 +59,20 @@ namespace RabbitMQClient
                 case Command.Channel.OpenOk:
                     Handle_OpenOk();
                     break;
+                case Command.Channel.CloseOk:
+                    Handle_CloseOk();
+                    break;
             }
         }
 
         internal void Handle_OpenOk()
         {
             channel_OpenOk.SetResult(true);
+        }
+
+        internal void Handle_CloseOk()
+        {
+            channel_CloseOk.SetResult(true);
         }
 
         internal void ParseQueueMethod(ushort methodId, ReadableBuffer arguments)
@@ -163,6 +171,41 @@ namespace RabbitMQClient
                 await buffer.FlushAsync();
 
                 await channel_OpenOk.Task;
+            }
+            finally
+            {
+                socket.ReleaseWriteBuffer();
+            }
+        }
+
+        TaskCompletionSource<bool> channel_CloseOk;
+        public async Task Close(ushort replyCode = ChannelReplyCode.Success, string replyText = "Goodbye", ushort failingClass = 0, ushort failingMethod = 0)
+        {
+            await semaphore.WaitAsync();
+
+            channel_CloseOk = new TaskCompletionSource<bool>();
+            expectedMethodId = Command.Channel.CloseOk;
+
+            var buffer = await socket.GetWriteBuffer();
+
+            try
+            {
+                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, ChannelNumber);
+
+                buffer.WriteBigEndian(Command.Channel.ClassId);
+                buffer.WriteBigEndian(Command.Channel.Close);
+                buffer.WriteBigEndian(replyCode);
+                buffer.WriteShortString(replyText);
+                buffer.WriteBigEndian(failingClass);
+                buffer.WriteBigEndian(failingMethod);
+
+                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
+
+                buffer.WriteBigEndian(FrameEnd);
+
+                await buffer.FlushAsync();
+
+                await channel_CloseOk.Task;
             }
             finally
             {

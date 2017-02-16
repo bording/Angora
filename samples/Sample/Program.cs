@@ -43,6 +43,8 @@ namespace Sample
             Console.WriteLine("Press any key to quit");
             Console.ReadKey();
 
+            await channel.Close();
+
             await connection.Close();
         }
     }
