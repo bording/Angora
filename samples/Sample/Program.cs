@@ -53,6 +53,8 @@ namespace Sample
 
             await channel.Exchange.Delete("test2", false);
 
+            await channel.Basic.Qos(0, 100, false);
+
             Console.WriteLine("Press any key to quit");
             Console.ReadKey();
 
