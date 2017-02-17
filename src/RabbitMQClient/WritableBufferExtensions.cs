@@ -24,6 +24,12 @@ namespace RabbitMQClient
 
         public static void WriteShortString(this WritableBuffer buffer, string value)
         {
+            if (value == null)
+            {
+                buffer.WriteBigEndian<byte>(0);
+                return;
+            }
+
             var valueBytes = Encoding.UTF8.GetBytes(value);
 
             if (valueBytes.Length > byte.MaxValue)
@@ -37,6 +43,12 @@ namespace RabbitMQClient
 
         public static void WriteLongString(this WritableBuffer buffer, string value)
         {
+            if (value == null)
+            {
+                buffer.WriteBigEndian<byte>(0);
+                return;
+            }
+
             var valueBytes = Encoding.UTF8.GetBytes(value);
 
             buffer.WriteBigEndian((uint)valueBytes.Length);
