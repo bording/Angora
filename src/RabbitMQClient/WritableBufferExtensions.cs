@@ -202,6 +202,12 @@ namespace RabbitMQClient
 
         static void WriteBytes(this WritableBuffer buffer, byte[] value)
         {
+            if (value == null)
+            {
+                buffer.WriteBigEndian<byte>(0);
+                return;
+            }
+
             buffer.WriteBigEndian((byte)value.Length);
 
             for (int i = 0; i < value.Length; i++)
