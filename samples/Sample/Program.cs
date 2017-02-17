@@ -60,6 +60,8 @@ namespace Sample
             Console.WriteLine("Press any key to quit");
             Console.ReadKey();
 
+            consumerTag = await channel.Basic.Cancel(consumerTag);
+
             await channel.Close();
 
             await connection.Close();

@@ -18,6 +18,7 @@ namespace RabbitMQClient
 
         TaskCompletionSource<bool> qosOk;
         TaskCompletionSource<string> consumeOk;
+        TaskCompletionSource<string> cancelOk;
 
         internal Basic(ushort channelNumber, Socket socket, SemaphoreSlim semaphore, Action<ushort> setExpectedMethodId)
         {
@@ -37,6 +38,10 @@ namespace RabbitMQClient
                 case Command.Basic.ConsumeOk:
                     Handle_ConsumeOk(arguments);
                     break;
+                case Command.Basic.CancelOk:
+                    Handle_CancelOk(arguments);
+                    break;
+
             }
         }
 
@@ -50,6 +55,13 @@ namespace RabbitMQClient
             var consumerTag = arguments.ReadShortString();
 
             consumeOk.SetResult(consumerTag.value);
+        }
+
+        private void Handle_CancelOk(ReadableBuffer arguments)
+        {
+            var consumerTag = arguments.ReadShortString();
+
+            cancelOk.SetResult(consumerTag.value);
         }
 
         public async Task Qos(uint prefetchSize, ushort prefetchCount, bool global)
@@ -114,6 +126,38 @@ namespace RabbitMQClient
                 await buffer.FlushAsync();
 
                 return await consumeOk.Task;
+            }
+            finally
+            {
+                socket.ReleaseWriteBuffer();
+            }
+        }
+
+        public async Task<string> Cancel(string consumerTag)
+        {
+            await semaphore.WaitAsync();
+
+            cancelOk = new TaskCompletionSource<string>();
+            SetExpectedMethodId(Command.Basic.CancelOk);
+
+            var buffer = await socket.GetWriteBuffer();
+
+            try
+            {
+                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, channelNumber);
+
+                buffer.WriteBigEndian(Command.Basic.ClassId);
+                buffer.WriteBigEndian(Command.Basic.Cancel);
+                buffer.WriteShortString(consumerTag);
+                buffer.WriteBits();
+
+                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
+
+                buffer.WriteBigEndian(FrameEnd);
+
+                await buffer.FlushAsync();
+
+                return await cancelOk.Task;
             }
             finally
             {
