@@ -55,6 +55,8 @@ namespace Sample
 
             await channel.Basic.Qos(0, 100, false);
 
+            var consumerTag = await channel.Basic.Consume("test1", null, false, false, null);
+
             Console.WriteLine("Press any key to quit");
             Console.ReadKey();
 
