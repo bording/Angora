@@ -15,6 +15,11 @@ namespace RabbitMQClient
     {
         static readonly byte[] protocolHeader = { 0x41, 0x4d, 0x51, 0x50, 0x00, 0x00, 0x09, 0x01 };
 
+        static readonly Dictionary<string, object> capabilities = new Dictionary<string, object>
+        {
+            { "exchange_exchange_bindings", true }
+        };
+
         const ushort connectionChannelNumber = 0;
 
         readonly string hostName;
@@ -46,7 +51,7 @@ namespace RabbitMQClient
             channels = new Dictionary<ushort, Channel>();
         }
 
-        internal async Task Connect()
+        internal async Task Connect(string connectionName = null)
         {
             var addresses = await Dns.GetHostAddressesAsync(hostName);
             var address = addresses.First();
@@ -57,7 +62,7 @@ namespace RabbitMQClient
             Task.Run(() => ReadLoop()).Ignore();
 
             var startResult = await Send_ProtocolHeader();
-            await Send_StartOk();
+            await Send_StartOk(connectionName);
 
             await readyToOpenConnection.Task;
 
@@ -279,7 +284,7 @@ namespace RabbitMQClient
             }
         }
 
-        async Task Send_StartOk()
+        async Task Send_StartOk(string connectionName)
         {
             var buffer = await socket.GetWriteBuffer();
 
@@ -289,7 +294,15 @@ namespace RabbitMQClient
 
                 buffer.WriteBigEndian(Command.Connection.ClassId);
                 buffer.WriteBigEndian(Command.Connection.StartOk);
-                buffer.WriteTable(null); //client-properties
+
+                var clientProperties = new Dictionary<string, object>
+                {
+                    { "product", "RabbitMQClient" },
+                    { "capabilities", capabilities },
+                    { "connection_name", connectionName }
+                };
+
+                buffer.WriteTable(clientProperties);
                 buffer.WriteShortString("PLAIN"); //mechanism
                 buffer.WriteLongString($"\0{userName}\0{password}"); //response
                 buffer.WriteShortString("en_US"); //locale

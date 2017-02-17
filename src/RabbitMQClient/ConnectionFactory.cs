@@ -12,10 +12,10 @@ namespace RabbitMQClient
 
         public string VirtualHost { get; set; } = "/";
 
-        public async Task<Connection> CreateConnection()
+        public async Task<Connection> CreateConnection(string connectionName = null)
         {
             var connection = new Connection(HostName, UserName, Password, VirtualHost);
-            await connection.Connect();
+            await connection.Connect(connectionName);
 
             return connection;
         }

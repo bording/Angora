@@ -19,7 +19,7 @@ namespace Sample
                 HostName = "rabbit"
             };
 
-            var connection = await factory.CreateConnection();
+            var connection = await factory.CreateConnection("test connection");
 
             var channel = await connection.CreateChannel();
 
