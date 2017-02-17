@@ -14,18 +14,18 @@ namespace RabbitMQClient
         readonly ushort channelNumber;
         readonly Socket socket;
         readonly SemaphoreSlim semaphore;
-        readonly Action<ushort> SetExpectedMethodId;
+        readonly Action<ushort, ushort, Action<Exception>> SetExpectedReplyMethod;
 
         TaskCompletionSource<bool> qosOk;
         TaskCompletionSource<string> consumeOk;
         TaskCompletionSource<string> cancelOk;
 
-        internal Basic(ushort channelNumber, Socket socket, SemaphoreSlim semaphore, Action<ushort> setExpectedMethodId)
+        internal Basic(ushort channelNumber, Socket socket, SemaphoreSlim semaphore, Action<ushort, ushort, Action<Exception>> setExpectedReplyMethod)
         {
             this.channelNumber = channelNumber;
             this.socket = socket;
             this.semaphore = semaphore;
-            SetExpectedMethodId = setExpectedMethodId;
+            SetExpectedReplyMethod = setExpectedReplyMethod;
         }
 
         internal void HandleIncomingMethod(ushort methodId, ReadableBuffer arguments)
@@ -41,7 +41,6 @@ namespace RabbitMQClient
                 case Command.Basic.CancelOk:
                     Handle_CancelOk(arguments);
                     break;
-
             }
         }
 
@@ -69,7 +68,7 @@ namespace RabbitMQClient
             await semaphore.WaitAsync();
 
             qosOk = new TaskCompletionSource<bool>();
-            SetExpectedMethodId(Command.Basic.QosOk);
+            SetExpectedReplyMethod(Command.Basic.ClassId, Command.Basic.QosOk, ex => qosOk.SetException(ex));
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -102,7 +101,7 @@ namespace RabbitMQClient
             await semaphore.WaitAsync();
 
             consumeOk = new TaskCompletionSource<string>();
-            SetExpectedMethodId(Command.Basic.ConsumeOk);
+            SetExpectedReplyMethod(Command.Basic.ClassId, Command.Basic.ConsumeOk, ex => consumeOk.SetException(ex));
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -138,7 +137,7 @@ namespace RabbitMQClient
             await semaphore.WaitAsync();
 
             cancelOk = new TaskCompletionSource<string>();
-            SetExpectedMethodId(Command.Basic.CancelOk);
+            SetExpectedReplyMethod(Command.Basic.ClassId, Command.Basic.CancelOk, ex => cancelOk.SetException(ex));
 
             var buffer = await socket.GetWriteBuffer();
 
