@@ -45,7 +45,7 @@ namespace RabbitMQClient
         {
             if (value == null)
             {
-                buffer.WriteBigEndian<byte>(0);
+                buffer.WriteBigEndian<uint>(0);
                 return;
             }
 
