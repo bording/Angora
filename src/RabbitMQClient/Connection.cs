@@ -130,7 +130,7 @@ namespace RabbitMQClient
                         break;
                 }
 
-                socket.Input.Advance(buffer.Start);
+                socket.Input.Advance(buffer.Start, buffer.End);
             }
         }
 
