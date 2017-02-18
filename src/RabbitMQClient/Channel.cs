@@ -56,6 +56,9 @@ namespace RabbitMQClient
                 var methodId = method << 16 >> 16;
 
                 expectedMethodError(new Exception($"Connection Closed: {replyCode} {replyText}. ClassId: {classId} MethodId: {methodId}"));
+
+                replyIsExpected = false;
+                pendingReply.Release();
             }
         }
 
@@ -146,13 +149,13 @@ namespace RabbitMQClient
                 buffer.WriteBigEndian(FrameEnd);
 
                 await buffer.FlushAsync();
-
-                await openOk.Task;
             }
             finally
             {
                 socket.ReleaseWriteBuffer();
             }
+
+            await openOk.Task;
         }
 
         public async Task Close(ushort replyCode = ChannelReplyCode.Success, string replyText = "Goodbye", ushort failingClass = 0, ushort failingMethod = 0)
@@ -179,13 +182,13 @@ namespace RabbitMQClient
                 buffer.WriteBigEndian(FrameEnd);
 
                 await buffer.FlushAsync();
-
-                await closeOk.Task;
             }
             finally
             {
                 socket.ReleaseWriteBuffer();
             }
+
+            await closeOk.Task;
         }
     }
 }

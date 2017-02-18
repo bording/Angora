@@ -14,17 +14,25 @@ namespace RabbitMQClient
         public bool HeartbeatNeeded { get; private set; } = true;
 
         SocketConnection connection;
-        SemaphoreSlim semaphore = new SemaphoreSlim(1, 1);
+        readonly SemaphoreSlim semaphore = new SemaphoreSlim(1, 1);
+
+        bool isOpen;
 
         public IPipeReader Input => connection.Input;
 
         public async Task Connect(IPEndPoint endpoint)
         {
             connection = await SocketConnection.ConnectAsync(endpoint);
+            isOpen = true;
         }
 
         public async Task<WritableBuffer> GetWriteBuffer(int minimumSize = 0)
         {
+            if (!isOpen)
+            {
+                throw new Exception("socket is closed for writing");
+            }
+
             await semaphore.WaitAsync();
 
             return connection.Output.Alloc(minimumSize);
@@ -36,6 +44,11 @@ namespace RabbitMQClient
             semaphore.Release();
         }
 
-        public Task Close() => connection.DisposeAsync();
+        public void Close()
+        {
+            isOpen = false;
+
+            connection.Output.Complete();
+        }
     }
 }

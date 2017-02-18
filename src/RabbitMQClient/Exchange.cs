@@ -94,13 +94,13 @@ namespace RabbitMQClient
                 buffer.WriteBigEndian(FrameEnd);
 
                 await buffer.FlushAsync();
-
-                await declareOk.Task;
             }
             finally
             {
                 socket.ReleaseWriteBuffer();
             }
+
+            await declareOk.Task;
         }
 
 
@@ -128,13 +128,13 @@ namespace RabbitMQClient
                 buffer.WriteBigEndian(FrameEnd);
 
                 await buffer.FlushAsync();
-
-                await deleteOk.Task;
             }
             finally
             {
                 socket.ReleaseWriteBuffer();
             }
+
+            await deleteOk.Task;
         }
 
 
@@ -165,13 +165,13 @@ namespace RabbitMQClient
                 buffer.WriteBigEndian(FrameEnd);
 
                 await buffer.FlushAsync();
-
-                await bindOk.Task;
             }
             finally
             {
                 socket.ReleaseWriteBuffer();
             }
+
+            await bindOk.Task;
         }
 
 
@@ -202,13 +202,13 @@ namespace RabbitMQClient
                 buffer.WriteBigEndian(FrameEnd);
 
                 await buffer.FlushAsync();
-
-                await unbindOk.Task;
             }
             finally
             {
                 socket.ReleaseWriteBuffer();
             }
+
+            await unbindOk.Task;
         }
     }
 }

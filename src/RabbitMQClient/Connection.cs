@@ -94,8 +94,12 @@ namespace RabbitMQClient
                 {
                     await Send_Close();
                 }
+                else
+                {
+                    await Send_CloseOk();
+                }
 
-                await socket.Close();
+                socket.Close();
             }
             else
             {
@@ -289,12 +293,12 @@ namespace RabbitMQClient
 
             var method = arguments.ReadBigEndian<uint>();
 
+            await Close(false);
+
             foreach (var channel in channels)
             {
                 channel.Value.Handle_Connection_Close(replyCode, replyText, method);
             }
-
-            await Close(false);
         }
 
         async Task<StartResult> Send_ProtocolHeader()
@@ -306,13 +310,13 @@ namespace RabbitMQClient
                 buffer.Write(protocolHeader);
 
                 await buffer.FlushAsync();
-
-                return await startSent.Task;
             }
             finally
             {
                 socket.ReleaseWriteBuffer();
             }
+
+            return await startSent.Task;
         }
 
         async Task Send_StartOk(string connectionName)
@@ -367,13 +371,13 @@ namespace RabbitMQClient
                 buffer.WriteBigEndian(FrameEnd);
 
                 await buffer.FlushAsync();
-
-                readyToOpenConnection.SetResult(true);
             }
             finally
             {
                 socket.ReleaseWriteBuffer();
             }
+
+            readyToOpenConnection.SetResult(true);
         }
 
         async Task<bool> Send_Open()
@@ -394,13 +398,13 @@ namespace RabbitMQClient
                 buffer.WriteBigEndian(FrameEnd);
 
                 await buffer.FlushAsync();
-
-                return await openOk.Task;
             }
             finally
             {
                 socket.ReleaseWriteBuffer();
             }
+
+            return await openOk.Task;
         }
 
         async Task Send_Close(ushort replyCode = ConnectionReplyCode.Success, string replyText = "Goodbye", ushort failingClass = 0, ushort failingMethod = 0)
@@ -422,8 +426,30 @@ namespace RabbitMQClient
                 buffer.WriteBigEndian(FrameEnd);
 
                 await buffer.FlushAsync();
+            }
+            finally
+            {
+                socket.ReleaseWriteBuffer();
+            }
 
-                await closeOk.Task;
+            await closeOk.Task;
+        }
+
+        async Task Send_CloseOk()
+        {
+            var buffer = await socket.GetWriteBuffer();
+
+            try
+            {
+                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, connectionChannelNumber);
+
+                buffer.WriteBigEndian(Method.Connection.CloseOk);
+
+                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
+
+                buffer.WriteBigEndian(FrameEnd);
+
+                await buffer.FlushAsync();
             }
             finally
             {

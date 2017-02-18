@@ -95,13 +95,13 @@ namespace RabbitMQClient
                 buffer.WriteBigEndian(FrameEnd);
 
                 await buffer.FlushAsync();
-
-                await qosOk.Task;
             }
             finally
             {
                 socket.ReleaseWriteBuffer();
             }
+
+            await qosOk.Task;
         }
 
         public async Task<string> Consume(string queue, string consumerTag, bool autoAck, bool exclusive, Dictionary<string, object> arguments)
@@ -130,13 +130,13 @@ namespace RabbitMQClient
                 buffer.WriteBigEndian(FrameEnd);
 
                 await buffer.FlushAsync();
-
-                return await consumeOk.Task;
             }
             finally
             {
                 socket.ReleaseWriteBuffer();
             }
+
+            return await consumeOk.Task;
         }
 
         public async Task<string> Cancel(string consumerTag)
@@ -161,13 +161,13 @@ namespace RabbitMQClient
                 buffer.WriteBigEndian(FrameEnd);
 
                 await buffer.FlushAsync();
-
-                return await cancelOk.Task;
             }
             finally
             {
                 socket.ReleaseWriteBuffer();
             }
+
+            return await cancelOk.Task;
         }
 
         public async Task Recover()
@@ -191,13 +191,13 @@ namespace RabbitMQClient
                 buffer.WriteBigEndian(FrameEnd);
 
                 await buffer.FlushAsync();
-
-                await recoverOk.Task;
             }
             finally
             {
                 socket.ReleaseWriteBuffer();
             }
+
+            await recoverOk.Task;
         }
 
     }

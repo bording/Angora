@@ -124,13 +124,13 @@ namespace RabbitMQClient
                 buffer.WriteBigEndian(FrameEnd);
 
                 await buffer.FlushAsync();
-
-                return await declareOk.Task;
             }
             finally
             {
                 socket.ReleaseWriteBuffer();
             }
+
+            return await declareOk.Task;
         }
 
         public async Task Bind(string queue, string exchange, string routingKey, Dictionary<string, object> arguments)
@@ -160,13 +160,13 @@ namespace RabbitMQClient
                 buffer.WriteBigEndian(FrameEnd);
 
                 await buffer.FlushAsync();
-
-                await bindOk.Task;
             }
             finally
             {
                 socket.ReleaseWriteBuffer();
             }
+
+            await bindOk.Task;
         }
 
         public async Task Unbind(string queue, string exchange, string routingKey, Dictionary<string, object> arguments)
@@ -195,13 +195,13 @@ namespace RabbitMQClient
                 buffer.WriteBigEndian(FrameEnd);
 
                 await buffer.FlushAsync();
-
-                await unbindOk.Task;
             }
             finally
             {
                 socket.ReleaseWriteBuffer();
             }
+
+            await unbindOk.Task;
         }
 
         public async Task<uint> Purge(string queue)
@@ -228,13 +228,13 @@ namespace RabbitMQClient
                 buffer.WriteBigEndian(FrameEnd);
 
                 await buffer.FlushAsync();
-
-                return await purgeOk.Task;
             }
             finally
             {
                 socket.ReleaseWriteBuffer();
             }
+
+            return await purgeOk.Task;
         }
 
         public async Task<uint> Delete(string queue, bool onlyIfUnused, bool onlyIfEmpty)
@@ -261,13 +261,13 @@ namespace RabbitMQClient
                 buffer.WriteBigEndian(FrameEnd);
 
                 await buffer.FlushAsync();
-
-                return await deleteOk.Task;
             }
             finally
             {
                 socket.ReleaseWriteBuffer();
             }
+
+            return await deleteOk.Task;
         }
     }
 }
