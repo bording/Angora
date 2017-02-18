@@ -33,16 +33,16 @@ namespace RabbitMQClient
         {
             switch (method)
             {
-                case Command.Exchange.DeclareOk:
+                case Method.Exchange.DeclareOk:
                     Handle_DeclareOk();
                     break;
-                case Command.Exchange.DeleteOk:
+                case Method.Exchange.DeleteOk:
                     Handle_DeleteOk();
                     break;
-                case Command.Exchange.BindOk:
+                case Method.Exchange.BindOk:
                     Handle_BindOk();
                     break;
-                case Command.Exchange.UnbindOk:
+                case Method.Exchange.UnbindOk:
                     Handle_UnbindOk();
                     break;
             }
@@ -73,7 +73,7 @@ namespace RabbitMQClient
             await semaphore.WaitAsync();
 
             declareOk = new TaskCompletionSource<bool>();
-            SetExpectedReplyMethod(Command.Exchange.DeclareOk, ex => declareOk.SetException(ex));
+            SetExpectedReplyMethod(Method.Exchange.DeclareOk, ex => declareOk.SetException(ex));
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -81,7 +81,7 @@ namespace RabbitMQClient
             {
                 var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, channelNumber);
 
-                buffer.WriteBigEndian(Command.Exchange.Declare);
+                buffer.WriteBigEndian(Method.Exchange.Declare);
                 buffer.WriteBigEndian(Reserved);
                 buffer.WriteBigEndian(Reserved);
                 buffer.WriteShortString(exchangeName);
@@ -109,7 +109,7 @@ namespace RabbitMQClient
             await semaphore.WaitAsync();
 
             deleteOk = new TaskCompletionSource<bool>();
-            SetExpectedReplyMethod(Command.Exchange.DeleteOk, ex => deleteOk.SetException(ex));
+            SetExpectedReplyMethod(Method.Exchange.DeleteOk, ex => deleteOk.SetException(ex));
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -117,7 +117,7 @@ namespace RabbitMQClient
             {
                 var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, channelNumber);
 
-                buffer.WriteBigEndian(Command.Exchange.Delete);
+                buffer.WriteBigEndian(Method.Exchange.Delete);
                 buffer.WriteBigEndian(Reserved);
                 buffer.WriteBigEndian(Reserved);
                 buffer.WriteShortString(exchange);
@@ -143,7 +143,7 @@ namespace RabbitMQClient
             await semaphore.WaitAsync();
 
             bindOk = new TaskCompletionSource<bool>();
-            SetExpectedReplyMethod(Command.Exchange.BindOk, ex => bindOk.SetException(ex));
+            SetExpectedReplyMethod(Method.Exchange.BindOk, ex => bindOk.SetException(ex));
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -151,7 +151,7 @@ namespace RabbitMQClient
             {
                 var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, channelNumber);
 
-                buffer.WriteBigEndian(Command.Exchange.Bind);
+                buffer.WriteBigEndian(Method.Exchange.Bind);
                 buffer.WriteBigEndian(Reserved);
                 buffer.WriteBigEndian(Reserved);
                 buffer.WriteShortString(source);
@@ -180,7 +180,7 @@ namespace RabbitMQClient
             await semaphore.WaitAsync();
 
             unbindOk = new TaskCompletionSource<bool>();
-            SetExpectedReplyMethod(Command.Exchange.UnbindOk, ex => unbindOk.SetException(ex));
+            SetExpectedReplyMethod(Method.Exchange.UnbindOk, ex => unbindOk.SetException(ex));
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -188,7 +188,7 @@ namespace RabbitMQClient
             {
                 var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, channelNumber);
 
-                buffer.WriteBigEndian(Command.Exchange.Unbind);
+                buffer.WriteBigEndian(Method.Exchange.Unbind);
                 buffer.WriteBigEndian(Reserved);
                 buffer.WriteBigEndian(Reserved);
                 buffer.WriteShortString(source);

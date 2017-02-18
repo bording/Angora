@@ -34,19 +34,19 @@ namespace RabbitMQClient
         {
             switch (method)
             {
-                case Command.Queue.DeclareOk:
+                case Method.Queue.DeclareOk:
                     Handle_DeclareOk(arguments);
                     break;
-                case Command.Queue.BindOk:
+                case Method.Queue.BindOk:
                     Handle_BindOk();
                     break;
-                case Command.Queue.UnbindOk:
+                case Method.Queue.UnbindOk:
                     Handle_UnbindOk();
                     break;
-                case Command.Queue.PurgeOk:
+                case Method.Queue.PurgeOk:
                     Handle_PurgeOk(arguments);
                     break;
-                case Command.Queue.DeleteOk:
+                case Method.Queue.DeleteOk:
                     Handle_DeleteOk(arguments);
                     break;
             }
@@ -104,7 +104,7 @@ namespace RabbitMQClient
             await semaphore.WaitAsync();
 
             declareOk = new TaskCompletionSource<DeclareResult>();
-            SetExpectedReplyMethod(Command.Queue.DeclareOk, ex => declareOk.SetException(ex));
+            SetExpectedReplyMethod(Method.Queue.DeclareOk, ex => declareOk.SetException(ex));
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -112,7 +112,7 @@ namespace RabbitMQClient
             {
                 var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, channelNumber);
 
-                buffer.WriteBigEndian(Command.Queue.Declare);
+                buffer.WriteBigEndian(Method.Queue.Declare);
                 buffer.WriteBigEndian(Reserved);
                 buffer.WriteBigEndian(Reserved);
                 buffer.WriteShortString(queueName);
@@ -138,7 +138,7 @@ namespace RabbitMQClient
             await semaphore.WaitAsync();
 
             bindOk = new TaskCompletionSource<bool>();
-            SetExpectedReplyMethod(Command.Queue.BindOk, ex => bindOk.SetException(ex));
+            SetExpectedReplyMethod(Method.Queue.BindOk, ex => bindOk.SetException(ex));
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -146,7 +146,7 @@ namespace RabbitMQClient
             {
                 var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, channelNumber);
 
-                buffer.WriteBigEndian(Command.Queue.Bind);
+                buffer.WriteBigEndian(Method.Queue.Bind);
                 buffer.WriteBigEndian(Reserved);
                 buffer.WriteBigEndian(Reserved);
                 buffer.WriteShortString(queue);
@@ -174,7 +174,7 @@ namespace RabbitMQClient
             await semaphore.WaitAsync();
 
             unbindOk = new TaskCompletionSource<bool>();
-            SetExpectedReplyMethod(Command.Queue.UnbindOk, ex => unbindOk.SetException(ex));
+            SetExpectedReplyMethod(Method.Queue.UnbindOk, ex => unbindOk.SetException(ex));
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -182,7 +182,7 @@ namespace RabbitMQClient
             {
                 var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, channelNumber);
 
-                buffer.WriteBigEndian(Command.Queue.Unbind);
+                buffer.WriteBigEndian(Method.Queue.Unbind);
                 buffer.WriteBigEndian(Reserved);
                 buffer.WriteBigEndian(Reserved);
                 buffer.WriteShortString(queue);
@@ -209,7 +209,7 @@ namespace RabbitMQClient
             await semaphore.WaitAsync();
 
             purgeOk = new TaskCompletionSource<uint>();
-            SetExpectedReplyMethod(Command.Queue.PurgeOk, ex => purgeOk.SetException(ex));
+            SetExpectedReplyMethod(Method.Queue.PurgeOk, ex => purgeOk.SetException(ex));
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -217,7 +217,7 @@ namespace RabbitMQClient
             {
                 var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, channelNumber);
 
-                buffer.WriteBigEndian(Command.Queue.Purge);
+                buffer.WriteBigEndian(Method.Queue.Purge);
                 buffer.WriteBigEndian(Reserved);
                 buffer.WriteBigEndian(Reserved);
                 buffer.WriteShortString(queue);
@@ -242,7 +242,7 @@ namespace RabbitMQClient
             await semaphore.WaitAsync();
 
             deleteOk = new TaskCompletionSource<uint>();
-            SetExpectedReplyMethod(Command.Queue.DeleteOk, ex => deleteOk.SetException(ex));
+            SetExpectedReplyMethod(Method.Queue.DeleteOk, ex => deleteOk.SetException(ex));
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -250,7 +250,7 @@ namespace RabbitMQClient
             {
                 var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, channelNumber);
 
-                buffer.WriteBigEndian(Command.Queue.Delete);
+                buffer.WriteBigEndian(Method.Queue.Delete);
                 buffer.WriteBigEndian(Reserved);
                 buffer.WriteBigEndian(Reserved);
                 buffer.WriteShortString(queue);

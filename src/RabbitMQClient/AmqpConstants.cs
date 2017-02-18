@@ -41,7 +41,7 @@
             public const ushort PreconditionFailed = 406;
         }
 
-        public static class Class
+        public static class ClassId
         {
             public const ushort Connection = 10;
             public const ushort Channel = 20;
@@ -50,7 +50,7 @@
             public const ushort Basic = 60;
         }
 
-        public static class Method
+        public static class MethodId
         {
             public static class Connection
             {
@@ -125,78 +125,78 @@
             }
         }
 
-        public static class Command
+        public static class Method
         {
             public static class Connection
             {
-                public const uint Start = Class.Connection << 16 | Method.Connection.Start;
-                public const uint StartOk = Class.Connection << 16 | Method.Connection.StartOk;
-                public const uint Secure = Class.Connection << 16 | Method.Connection.Secure;
-                public const uint SecureOk = Class.Connection << 16 | Method.Connection.SecureOk;
-                public const uint Tune = Class.Connection << 16 | Method.Connection.Tune;
-                public const uint TuneOk = Class.Connection << 16 | Method.Connection.TuneOk;
-                public const uint Open = Class.Connection << 16 | Method.Connection.Open;
-                public const uint OpenOk = Class.Connection << 16 | Method.Connection.OpenOk;
-                public const uint Close = Class.Connection << 16 | Method.Connection.Close;
-                public const uint CloseOk = Class.Connection << 16 | Method.Connection.CloseOk;
+                public const uint Start = ClassId.Connection << 16 | MethodId.Connection.Start;
+                public const uint StartOk = ClassId.Connection << 16 | MethodId.Connection.StartOk;
+                public const uint Secure = ClassId.Connection << 16 | MethodId.Connection.Secure;
+                public const uint SecureOk = ClassId.Connection << 16 | MethodId.Connection.SecureOk;
+                public const uint Tune = ClassId.Connection << 16 | MethodId.Connection.Tune;
+                public const uint TuneOk = ClassId.Connection << 16 | MethodId.Connection.TuneOk;
+                public const uint Open = ClassId.Connection << 16 | MethodId.Connection.Open;
+                public const uint OpenOk = ClassId.Connection << 16 | MethodId.Connection.OpenOk;
+                public const uint Close = ClassId.Connection << 16 | MethodId.Connection.Close;
+                public const uint CloseOk = ClassId.Connection << 16 | MethodId.Connection.CloseOk;
             }
 
             public static class Channel
             {
-                public const uint Open = Class.Channel << 16 | Method.Channel.Open;
-                public const uint OpenOk = Class.Channel << 16 | Method.Channel.OpenOk;
-                public const uint Flow = Class.Channel << 16 | Method.Channel.Flow;
-                public const uint FlowOk = Class.Channel << 16 | Method.Channel.FlowOk;
-                public const uint Close = Class.Channel << 16 | Method.Channel.Close;
-                public const uint CloseOk = Class.Channel << 16 | Method.Channel.CloseOk;
+                public const uint Open = ClassId.Channel << 16 | MethodId.Channel.Open;
+                public const uint OpenOk = ClassId.Channel << 16 | MethodId.Channel.OpenOk;
+                public const uint Flow = ClassId.Channel << 16 | MethodId.Channel.Flow;
+                public const uint FlowOk = ClassId.Channel << 16 | MethodId.Channel.FlowOk;
+                public const uint Close = ClassId.Channel << 16 | MethodId.Channel.Close;
+                public const uint CloseOk = ClassId.Channel << 16 | MethodId.Channel.CloseOk;
             }
 
             public static class Exchange
             {
-                public const uint Declare = Class.Exchange << 16 | Method.Exchange.Declare;
-                public const uint DeclareOk = Class.Exchange << 16 | Method.Exchange.DeclareOk;
-                public const uint Delete = Class.Exchange << 16 | Method.Exchange.Delete;
-                public const uint DeleteOk = Class.Exchange << 16 | Method.Exchange.DeleteOk;
-                public const uint Bind = Class.Exchange << 16 | Method.Exchange.Bind;
-                public const uint BindOk = Class.Exchange << 16 | Method.Exchange.BindOk;
-                public const uint Unbind = Class.Exchange << 16 | Method.Exchange.Unbind;
-                public const uint UnbindOk = Class.Exchange << 16 | Method.Exchange.UnbindOk;
+                public const uint Declare = ClassId.Exchange << 16 | MethodId.Exchange.Declare;
+                public const uint DeclareOk = ClassId.Exchange << 16 | MethodId.Exchange.DeclareOk;
+                public const uint Delete = ClassId.Exchange << 16 | MethodId.Exchange.Delete;
+                public const uint DeleteOk = ClassId.Exchange << 16 | MethodId.Exchange.DeleteOk;
+                public const uint Bind = ClassId.Exchange << 16 | MethodId.Exchange.Bind;
+                public const uint BindOk = ClassId.Exchange << 16 | MethodId.Exchange.BindOk;
+                public const uint Unbind = ClassId.Exchange << 16 | MethodId.Exchange.Unbind;
+                public const uint UnbindOk = ClassId.Exchange << 16 | MethodId.Exchange.UnbindOk;
             }
 
             public static class Queue
             {
-                public const uint Declare = Class.Queue << 16 | Method.Queue.Declare;
-                public const uint DeclareOk = Class.Queue << 16 | Method.Queue.DeclareOk;
-                public const uint Bind = Class.Queue << 16 | Method.Queue.Bind;
-                public const uint BindOk = Class.Queue << 16 | Method.Queue.BindOk;
-                public const uint Purge = Class.Queue << 16 | Method.Queue.Purge;
-                public const uint PurgeOk = Class.Queue << 16 | Method.Queue.PurgeOk;
-                public const uint Delete = Class.Queue << 16 | Method.Queue.Delete;
-                public const uint DeleteOk = Class.Queue << 16 | Method.Queue.DeleteOk;
-                public const uint Unbind = Class.Queue << 16 | Method.Queue.Unbind;
-                public const uint UnbindOk = Class.Queue << 16 | Method.Queue.UnbindOk;
+                public const uint Declare = ClassId.Queue << 16 | MethodId.Queue.Declare;
+                public const uint DeclareOk = ClassId.Queue << 16 | MethodId.Queue.DeclareOk;
+                public const uint Bind = ClassId.Queue << 16 | MethodId.Queue.Bind;
+                public const uint BindOk = ClassId.Queue << 16 | MethodId.Queue.BindOk;
+                public const uint Purge = ClassId.Queue << 16 | MethodId.Queue.Purge;
+                public const uint PurgeOk = ClassId.Queue << 16 | MethodId.Queue.PurgeOk;
+                public const uint Delete = ClassId.Queue << 16 | MethodId.Queue.Delete;
+                public const uint DeleteOk = ClassId.Queue << 16 | MethodId.Queue.DeleteOk;
+                public const uint Unbind = ClassId.Queue << 16 | MethodId.Queue.Unbind;
+                public const uint UnbindOk = ClassId.Queue << 16 | MethodId.Queue.UnbindOk;
             }
 
             public static class Basic
             {
-                public const uint Qos = Class.Basic << 16 | Method.Basic.Qos;
-                public const uint QosOk = Class.Basic << 16 | Method.Basic.QosOk;
-                public const uint Consume = Class.Basic << 16 | Method.Basic.Consume;
-                public const uint ConsumeOk = Class.Basic << 16 | Method.Basic.ConsumeOk;
-                public const uint Cancel = Class.Basic << 16 | Method.Basic.Cancel;
-                public const uint CancelOk = Class.Basic << 16 | Method.Basic.CancelOk;
-                public const uint Publish = Class.Basic << 16 | Method.Basic.Publish;
-                public const uint Return = Class.Basic << 16 | Method.Basic.Return;
-                public const uint Deliver = Class.Basic << 16 | Method.Basic.Deliver;
-                public const uint Get = Class.Basic << 16 | Method.Basic.Get;
-                public const uint GetOk = Class.Basic << 16 | Method.Basic.GetOk;
-                public const uint GetEmpty = Class.Basic << 16 | Method.Basic.GetEmpty;
-                public const uint Ack = Class.Basic << 16 | Method.Basic.Ack;
-                public const uint Reject = Class.Basic << 16 | Method.Basic.Reject;
-                public const uint RecoverAsync = Class.Basic << 16 | Method.Basic.RecoverAsync;
-                public const uint Recover = Class.Basic << 16 | Method.Basic.Recover;
-                public const uint RecoverOk = Class.Basic << 16 | Method.Basic.RecoverOk;
-                public const uint Nack = Class.Basic << 16 | Method.Basic.Nack;
+                public const uint Qos = ClassId.Basic << 16 | MethodId.Basic.Qos;
+                public const uint QosOk = ClassId.Basic << 16 | MethodId.Basic.QosOk;
+                public const uint Consume = ClassId.Basic << 16 | MethodId.Basic.Consume;
+                public const uint ConsumeOk = ClassId.Basic << 16 | MethodId.Basic.ConsumeOk;
+                public const uint Cancel = ClassId.Basic << 16 | MethodId.Basic.Cancel;
+                public const uint CancelOk = ClassId.Basic << 16 | MethodId.Basic.CancelOk;
+                public const uint Publish = ClassId.Basic << 16 | MethodId.Basic.Publish;
+                public const uint Return = ClassId.Basic << 16 | MethodId.Basic.Return;
+                public const uint Deliver = ClassId.Basic << 16 | MethodId.Basic.Deliver;
+                public const uint Get = ClassId.Basic << 16 | MethodId.Basic.Get;
+                public const uint GetOk = ClassId.Basic << 16 | MethodId.Basic.GetOk;
+                public const uint GetEmpty = ClassId.Basic << 16 | MethodId.Basic.GetEmpty;
+                public const uint Ack = ClassId.Basic << 16 | MethodId.Basic.Ack;
+                public const uint Reject = ClassId.Basic << 16 | MethodId.Basic.Reject;
+                public const uint RecoverAsync = ClassId.Basic << 16 | MethodId.Basic.RecoverAsync;
+                public const uint Recover = ClassId.Basic << 16 | MethodId.Basic.Recover;
+                public const uint RecoverOk = ClassId.Basic << 16 | MethodId.Basic.RecoverOk;
+                public const uint Nack = ClassId.Basic << 16 | MethodId.Basic.Nack;
             }
         }
     }
