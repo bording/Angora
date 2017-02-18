@@ -19,7 +19,7 @@ namespace RabbitMQClient
         public Basic Basic { get; }
 
         readonly Socket socket;
-        readonly SemaphoreSlim semaphore;
+        readonly SemaphoreSlim pendingReply;
 
         bool replyIsExpected;
         uint expectedMethod;
@@ -33,11 +33,11 @@ namespace RabbitMQClient
             this.socket = socket;
             ChannelNumber = channelNumber;
 
-            semaphore = new SemaphoreSlim(1, 1);
+            pendingReply = new SemaphoreSlim(1, 1);
 
-            Exchange = new Exchange(channelNumber, socket, semaphore, SetExpectedReplyMethod);
-            Queue = new Queue(channelNumber, socket, semaphore, SetExpectedReplyMethod);
-            Basic = new Basic(channelNumber, socket, semaphore, SetExpectedReplyMethod);
+            Exchange = new Exchange(channelNumber, socket, pendingReply, SetExpectedReplyMethod);
+            Queue = new Queue(channelNumber, socket, pendingReply, SetExpectedReplyMethod);
+            Basic = new Basic(channelNumber, socket, pendingReply, SetExpectedReplyMethod);
         }
 
         void SetExpectedReplyMethod(uint method, Action<Exception> error)
@@ -86,7 +86,7 @@ namespace RabbitMQClient
                 if (replyIsExpected)
                 {
                     replyIsExpected = false;
-                    semaphore.Release();
+                    pendingReply.Release();
                 }
             }
         }
@@ -116,7 +116,7 @@ namespace RabbitMQClient
 
         internal async Task Open()
         {
-            await semaphore.WaitAsync();
+            await pendingReply.WaitAsync();
 
             openOk = new TaskCompletionSource<bool>();
             SetExpectedReplyMethod(Method.Channel.OpenOk, ex => openOk.SetException(ex));
@@ -146,7 +146,7 @@ namespace RabbitMQClient
 
         public async Task Close(ushort replyCode = ChannelReplyCode.Success, string replyText = "Goodbye", ushort failingClass = 0, ushort failingMethod = 0)
         {
-            await semaphore.WaitAsync();
+            await pendingReply.WaitAsync();
 
             closeOk = new TaskCompletionSource<bool>();
             SetExpectedReplyMethod(Method.Channel.CloseOk, ex => closeOk.SetException(ex));

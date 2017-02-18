@@ -13,7 +13,7 @@ namespace RabbitMQClient
     {
         readonly ushort channelNumber;
         readonly Socket socket;
-        readonly SemaphoreSlim semaphore;
+        readonly SemaphoreSlim pendingReply;
         readonly Action<uint, Action<Exception>> SetExpectedReplyMethod;
 
         TaskCompletionSource<DeclareResult> declareOk;
@@ -22,11 +22,11 @@ namespace RabbitMQClient
         TaskCompletionSource<uint> purgeOk;
         TaskCompletionSource<uint> deleteOk;
 
-        internal Queue(ushort channelNumber, Socket socket, SemaphoreSlim semaphore, Action<uint, Action<Exception>> setExpectedReplyMethod)
+        internal Queue(ushort channelNumber, Socket socket, SemaphoreSlim pendingReply, Action<uint, Action<Exception>> setExpectedReplyMethod)
         {
             this.channelNumber = channelNumber;
             this.socket = socket;
-            this.semaphore = semaphore;
+            this.pendingReply = pendingReply;
             SetExpectedReplyMethod = setExpectedReplyMethod;
         }
 
@@ -101,7 +101,7 @@ namespace RabbitMQClient
 
         public async Task<DeclareResult> Declare(string queueName, bool passive, bool durable, bool exclusive, bool autoDelete, Dictionary<string, object> arguments)
         {
-            await semaphore.WaitAsync();
+            await pendingReply.WaitAsync();
 
             declareOk = new TaskCompletionSource<DeclareResult>();
             SetExpectedReplyMethod(Method.Queue.DeclareOk, ex => declareOk.SetException(ex));
@@ -135,7 +135,7 @@ namespace RabbitMQClient
 
         public async Task Bind(string queue, string exchange, string routingKey, Dictionary<string, object> arguments)
         {
-            await semaphore.WaitAsync();
+            await pendingReply.WaitAsync();
 
             bindOk = new TaskCompletionSource<bool>();
             SetExpectedReplyMethod(Method.Queue.BindOk, ex => bindOk.SetException(ex));
@@ -171,7 +171,7 @@ namespace RabbitMQClient
 
         public async Task Unbind(string queue, string exchange, string routingKey, Dictionary<string, object> arguments)
         {
-            await semaphore.WaitAsync();
+            await pendingReply.WaitAsync();
 
             unbindOk = new TaskCompletionSource<bool>();
             SetExpectedReplyMethod(Method.Queue.UnbindOk, ex => unbindOk.SetException(ex));
@@ -206,7 +206,7 @@ namespace RabbitMQClient
 
         public async Task<uint> Purge(string queue)
         {
-            await semaphore.WaitAsync();
+            await pendingReply.WaitAsync();
 
             purgeOk = new TaskCompletionSource<uint>();
             SetExpectedReplyMethod(Method.Queue.PurgeOk, ex => purgeOk.SetException(ex));
@@ -239,7 +239,7 @@ namespace RabbitMQClient
 
         public async Task<uint> Delete(string queue, bool onlyIfUnused, bool onlyIfEmpty)
         {
-            await semaphore.WaitAsync();
+            await pendingReply.WaitAsync();
 
             deleteOk = new TaskCompletionSource<uint>();
             SetExpectedReplyMethod(Method.Queue.DeleteOk, ex => deleteOk.SetException(ex));

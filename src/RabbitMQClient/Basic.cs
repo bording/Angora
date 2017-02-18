@@ -13,18 +13,18 @@ namespace RabbitMQClient
     {
         readonly ushort channelNumber;
         readonly Socket socket;
-        readonly SemaphoreSlim semaphore;
+        readonly SemaphoreSlim pendingReply;
         readonly Action<uint, Action<Exception>> SetExpectedReplyMethod;
 
         TaskCompletionSource<bool> qosOk;
         TaskCompletionSource<string> consumeOk;
         TaskCompletionSource<string> cancelOk;
 
-        internal Basic(ushort channelNumber, Socket socket, SemaphoreSlim semaphore, Action<uint, Action<Exception>> setExpectedReplyMethod)
+        internal Basic(ushort channelNumber, Socket socket, SemaphoreSlim pendingReply, Action<uint, Action<Exception>> setExpectedReplyMethod)
         {
             this.channelNumber = channelNumber;
             this.socket = socket;
-            this.semaphore = semaphore;
+            this.pendingReply = pendingReply;
             SetExpectedReplyMethod = setExpectedReplyMethod;
         }
 
@@ -65,7 +65,7 @@ namespace RabbitMQClient
 
         public async Task Qos(uint prefetchSize, ushort prefetchCount, bool global)
         {
-            await semaphore.WaitAsync();
+            await pendingReply.WaitAsync();
 
             qosOk = new TaskCompletionSource<bool>();
             SetExpectedReplyMethod(Method.Basic.QosOk, ex => qosOk.SetException(ex));
@@ -97,7 +97,7 @@ namespace RabbitMQClient
 
         public async Task<string> Consume(string queue, string consumerTag, bool autoAck, bool exclusive, Dictionary<string, object> arguments)
         {
-            await semaphore.WaitAsync();
+            await pendingReply.WaitAsync();
 
             consumeOk = new TaskCompletionSource<string>();
             SetExpectedReplyMethod(Method.Basic.ConsumeOk, ex => consumeOk.SetException(ex));
@@ -132,7 +132,7 @@ namespace RabbitMQClient
 
         public async Task<string> Cancel(string consumerTag)
         {
-            await semaphore.WaitAsync();
+            await pendingReply.WaitAsync();
 
             cancelOk = new TaskCompletionSource<string>();
             SetExpectedReplyMethod(Method.Basic.CancelOk, ex => cancelOk.SetException(ex));
