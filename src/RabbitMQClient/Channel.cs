@@ -22,7 +22,7 @@ namespace RabbitMQClient
         readonly SemaphoreSlim semaphore;
 
         bool replyIsExpected;
-        (ushort classId, ushort methodId) expectedMethod;
+        uint expectedMethod;
         Action<Exception> expectedMethodError;
 
         TaskCompletionSource<bool> openOk;
@@ -40,7 +40,7 @@ namespace RabbitMQClient
             Basic = new Basic(channelNumber, socket, semaphore, SetExpectedReplyMethod);
         }
 
-        void SetExpectedReplyMethod((ushort classId, ushort methodId) method, Action<Exception> error)
+        void SetExpectedReplyMethod(uint method, Action<Exception> error)
         {
             expectedMethod = method;
             expectedMethodError = error;
@@ -48,11 +48,11 @@ namespace RabbitMQClient
             replyIsExpected = true;
         }
 
-        internal void HandleIncomingMethod((ushort classId, ushort methodId) method, ReadableBuffer arguments)
+        internal void HandleIncomingMethod(uint method, ReadableBuffer arguments)
         {
             try
             {
-                if (replyIsExpected && !method.Equals(expectedMethod))
+                if (replyIsExpected && method != expectedMethod)
                 {
                     expectedMethodError(new Exception($"Expected reply method {expectedMethod}. Received {method}."));
 
@@ -60,22 +60,24 @@ namespace RabbitMQClient
                     return;
                 }
 
-                switch (method.classId)
+                var classId = method >> 16;
+
+                switch (classId)
                 {
-                    case Command.Channel.ClassId:
-                        HandleIncomingMethod(method.methodId, arguments);
+                    case Class.Channel:
+                        HandleIncomingChannelMethod(method, arguments);
                         break;
 
-                    case Command.Exchange.ClassId:
-                        Exchange.HandleIncomingMethod(method.methodId, arguments);
+                    case Class.Exchange:
+                        Exchange.HandleIncomingMethod(method, arguments);
                         break;
 
-                    case Command.Queue.ClassId:
-                        Queue.HandleIncomingMethod(method.methodId, arguments);
+                    case Class.Queue:
+                        Queue.HandleIncomingMethod(method, arguments);
                         break;
 
-                    case Command.Basic.ClassId:
-                        Basic.HandleIncomingMethod(method.methodId, arguments);
+                    case Class.Basic:
+                        Basic.HandleIncomingMethod(method, arguments);
                         break;
                 }
             }
@@ -89,9 +91,9 @@ namespace RabbitMQClient
             }
         }
 
-        void HandleIncomingMethod(ushort methodId, ReadableBuffer arguments)
+        void HandleIncomingChannelMethod(uint method, ReadableBuffer arguments)
         {
-            switch (methodId)
+            switch (method)
             {
                 case Command.Channel.OpenOk:
                     Handle_OpenOk();
@@ -117,7 +119,7 @@ namespace RabbitMQClient
             await semaphore.WaitAsync();
 
             openOk = new TaskCompletionSource<bool>();
-            SetExpectedReplyMethod((Command.Channel.ClassId, Command.Channel.OpenOk), ex => openOk.SetException(ex));
+            SetExpectedReplyMethod(Command.Channel.OpenOk, ex => openOk.SetException(ex));
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -125,7 +127,6 @@ namespace RabbitMQClient
             {
                 var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, ChannelNumber);
 
-                buffer.WriteBigEndian(Command.Channel.ClassId);
                 buffer.WriteBigEndian(Command.Channel.Open);
                 buffer.WriteBigEndian(Reserved);
 
@@ -148,7 +149,7 @@ namespace RabbitMQClient
             await semaphore.WaitAsync();
 
             closeOk = new TaskCompletionSource<bool>();
-            SetExpectedReplyMethod((Command.Channel.ClassId, Command.Channel.CloseOk), ex => closeOk.SetException(ex));
+            SetExpectedReplyMethod(Command.Channel.CloseOk, ex => closeOk.SetException(ex));
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -156,7 +157,6 @@ namespace RabbitMQClient
             {
                 var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, ChannelNumber);
 
-                buffer.WriteBigEndian(Command.Channel.ClassId);
                 buffer.WriteBigEndian(Command.Channel.Close);
                 buffer.WriteBigEndian(replyCode);
                 buffer.WriteShortString(replyText);

@@ -169,27 +169,26 @@ namespace RabbitMQClient
 
         Task HandleIncomingMethodFrame(ushort channelNumber, ReadableBuffer payload)
         {
-            var classId = payload.ReadBigEndian<ushort>();
-            payload = payload.Slice(sizeof(ushort));
+            var method = payload.ReadBigEndian<uint>();
+            payload = payload.Slice(sizeof(uint));
 
-            var methodId = payload.ReadBigEndian<ushort>();
-            payload = payload.Slice(sizeof(ushort));
+            uint classId = method >> 16;
 
-            if (classId == Command.Connection.ClassId) //TODO validate channel 0
+            if (classId == Class.Connection) //TODO validate channel 0
             {
-                return HandleIncomingMethod(methodId, payload);
+                return HandleIncomingMethod(method, payload);
             }
             else
             {
-                channels[channelNumber].HandleIncomingMethod((classId, methodId), payload);
+                channels[channelNumber].HandleIncomingMethod(method, payload);
             }
 
             return Task.CompletedTask;
         }
 
-        Task HandleIncomingMethod(ushort methodId, ReadableBuffer arguments)
+        Task HandleIncomingMethod(uint method, ReadableBuffer arguments)
         {
-            switch (methodId)
+            switch (method)
             {
                 case Command.Connection.Start:
                     Handle_Start(arguments);
@@ -292,7 +291,6 @@ namespace RabbitMQClient
             {
                 var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, connectionChannelNumber);
 
-                buffer.WriteBigEndian(Command.Connection.ClassId);
                 buffer.WriteBigEndian(Command.Connection.StartOk);
 
                 var clientProperties = new Dictionary<string, object>
@@ -327,7 +325,6 @@ namespace RabbitMQClient
             {
                 var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, connectionChannelNumber);
 
-                buffer.WriteBigEndian(Command.Connection.ClassId);
                 buffer.WriteBigEndian(Command.Connection.TuneOk);
                 buffer.WriteBigEndian(channelMax);
                 buffer.WriteBigEndian(frameMax);
@@ -355,7 +352,6 @@ namespace RabbitMQClient
             {
                 var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, connectionChannelNumber);
 
-                buffer.WriteBigEndian(Command.Connection.ClassId);
                 buffer.WriteBigEndian(Command.Connection.Open);
                 buffer.WriteShortString(virtualHost);
                 buffer.WriteBigEndian(Reserved);
@@ -383,7 +379,6 @@ namespace RabbitMQClient
             {
                 var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, connectionChannelNumber);
 
-                buffer.WriteBigEndian(Command.Connection.ClassId);
                 buffer.WriteBigEndian(Command.Connection.Close);
                 buffer.WriteBigEndian(replyCode);
                 buffer.WriteShortString(replyText);
