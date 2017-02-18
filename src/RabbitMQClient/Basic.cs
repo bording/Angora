@@ -19,6 +19,7 @@ namespace RabbitMQClient
         TaskCompletionSource<bool> qosOk;
         TaskCompletionSource<string> consumeOk;
         TaskCompletionSource<string> cancelOk;
+        TaskCompletionSource<bool> recoverOk;
 
         internal Basic(ushort channelNumber, Socket socket, SemaphoreSlim pendingReply, Action<uint, Action<Exception>> setExpectedReplyMethod)
         {
@@ -41,26 +42,34 @@ namespace RabbitMQClient
                 case Method.Basic.CancelOk:
                     Handle_CancelOk(arguments);
                     break;
+                case Method.Basic.RecoverOk:
+                    Handle_RecoverOk();
+                    break;
             }
         }
 
-        private void Handle_QosOk()
+        void Handle_QosOk()
         {
             qosOk.SetResult(true);
         }
 
-        private void Handle_ConsumeOk(ReadableBuffer arguments)
+        void Handle_ConsumeOk(ReadableBuffer arguments)
         {
             var consumerTag = arguments.ReadShortString();
 
             consumeOk.SetResult(consumerTag.value);
         }
 
-        private void Handle_CancelOk(ReadableBuffer arguments)
+        void Handle_CancelOk(ReadableBuffer arguments)
         {
             var consumerTag = arguments.ReadShortString();
 
             cancelOk.SetResult(consumerTag.value);
+        }
+
+        void Handle_RecoverOk()
+        {
+            recoverOk.SetResult(true);
         }
 
         public async Task Qos(uint prefetchSize, ushort prefetchCount, bool global)
@@ -154,6 +163,36 @@ namespace RabbitMQClient
                 await buffer.FlushAsync();
 
                 return await cancelOk.Task;
+            }
+            finally
+            {
+                socket.ReleaseWriteBuffer();
+            }
+        }
+
+        public async Task Recover()
+        {
+            await pendingReply.WaitAsync();
+
+            recoverOk = new TaskCompletionSource<bool>();
+            SetExpectedReplyMethod(Method.Basic.RecoverOk, ex => recoverOk.SetException(ex));
+
+            var buffer = await socket.GetWriteBuffer();
+
+            try
+            {
+                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, channelNumber);
+
+                buffer.WriteBigEndian(Method.Basic.Recover);
+                buffer.WriteBits(true);
+
+                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
+
+                buffer.WriteBigEndian(FrameEnd);
+
+                await buffer.FlushAsync();
+
+                await recoverOk.Task;
             }
             finally
             {
