@@ -14,13 +14,13 @@ namespace RabbitMQClient
         readonly ushort channelNumber;
         readonly Socket socket;
         readonly SemaphoreSlim semaphore;
-        readonly Action<ushort, ushort, Action<Exception>> SetExpectedReplyMethod;
+        readonly Action<(ushort, ushort), Action<Exception>> SetExpectedReplyMethod;
 
         TaskCompletionSource<bool> qosOk;
         TaskCompletionSource<string> consumeOk;
         TaskCompletionSource<string> cancelOk;
 
-        internal Basic(ushort channelNumber, Socket socket, SemaphoreSlim semaphore, Action<ushort, ushort, Action<Exception>> setExpectedReplyMethod)
+        internal Basic(ushort channelNumber, Socket socket, SemaphoreSlim semaphore, Action<(ushort, ushort), Action<Exception>> setExpectedReplyMethod)
         {
             this.channelNumber = channelNumber;
             this.socket = socket;
@@ -68,7 +68,7 @@ namespace RabbitMQClient
             await semaphore.WaitAsync();
 
             qosOk = new TaskCompletionSource<bool>();
-            SetExpectedReplyMethod(Command.Basic.ClassId, Command.Basic.QosOk, ex => qosOk.SetException(ex));
+            SetExpectedReplyMethod((Command.Basic.ClassId, Command.Basic.QosOk), ex => qosOk.SetException(ex));
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -101,7 +101,7 @@ namespace RabbitMQClient
             await semaphore.WaitAsync();
 
             consumeOk = new TaskCompletionSource<string>();
-            SetExpectedReplyMethod(Command.Basic.ClassId, Command.Basic.ConsumeOk, ex => consumeOk.SetException(ex));
+            SetExpectedReplyMethod((Command.Basic.ClassId, Command.Basic.ConsumeOk), ex => consumeOk.SetException(ex));
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -137,7 +137,7 @@ namespace RabbitMQClient
             await semaphore.WaitAsync();
 
             cancelOk = new TaskCompletionSource<string>();
-            SetExpectedReplyMethod(Command.Basic.ClassId, Command.Basic.CancelOk, ex => cancelOk.SetException(ex));
+            SetExpectedReplyMethod((Command.Basic.ClassId, Command.Basic.CancelOk), ex => cancelOk.SetException(ex));
 
             var buffer = await socket.GetWriteBuffer();
 

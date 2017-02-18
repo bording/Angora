@@ -181,7 +181,7 @@ namespace RabbitMQClient
             }
             else
             {
-                channels[channelNumber].HandleIncomingMethod(classId, methodId, payload);
+                channels[channelNumber].HandleIncomingMethod((classId, methodId), payload);
             }
 
             return Task.CompletedTask;

@@ -14,14 +14,14 @@ namespace RabbitMQClient
         readonly ushort channelNumber;
         readonly Socket socket;
         readonly SemaphoreSlim semaphore;
-        readonly Action<ushort, ushort, Action<Exception>> SetExpectedReplyMethod;
+        readonly Action<(ushort, ushort), Action<Exception>> SetExpectedReplyMethod;
 
         TaskCompletionSource<bool> declareOk;
         TaskCompletionSource<bool> deleteOk;
         TaskCompletionSource<bool> bindOk;
         TaskCompletionSource<bool> unbindOk;
 
-        internal Exchange(ushort channelNumber, Socket socket, SemaphoreSlim semaphore, Action<ushort, ushort, Action<Exception>> setExpectedReplyMethod)
+        internal Exchange(ushort channelNumber, Socket socket, SemaphoreSlim semaphore, Action<(ushort, ushort), Action<Exception>> setExpectedReplyMethod)
         {
             this.channelNumber = channelNumber;
             this.socket = socket;
@@ -73,7 +73,7 @@ namespace RabbitMQClient
             await semaphore.WaitAsync();
 
             declareOk = new TaskCompletionSource<bool>();
-            SetExpectedReplyMethod(Command.Exchange.ClassId, Command.Exchange.DeclareOk, ex => declareOk.SetException(ex));
+            SetExpectedReplyMethod((Command.Exchange.ClassId, Command.Exchange.DeclareOk), ex => declareOk.SetException(ex));
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -110,7 +110,7 @@ namespace RabbitMQClient
             await semaphore.WaitAsync();
 
             deleteOk = new TaskCompletionSource<bool>();
-            SetExpectedReplyMethod(Command.Exchange.ClassId, Command.Exchange.DeleteOk, ex => deleteOk.SetException(ex));
+            SetExpectedReplyMethod((Command.Exchange.ClassId, Command.Exchange.DeleteOk), ex => deleteOk.SetException(ex));
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -145,7 +145,7 @@ namespace RabbitMQClient
             await semaphore.WaitAsync();
 
             bindOk = new TaskCompletionSource<bool>();
-            SetExpectedReplyMethod(Command.Exchange.ClassId, Command.Exchange.BindOk, ex => bindOk.SetException(ex));
+            SetExpectedReplyMethod((Command.Exchange.ClassId, Command.Exchange.BindOk), ex => bindOk.SetException(ex));
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -183,7 +183,7 @@ namespace RabbitMQClient
             await semaphore.WaitAsync();
 
             unbindOk = new TaskCompletionSource<bool>();
-            SetExpectedReplyMethod(Command.Exchange.ClassId, Command.Exchange.UnbindOk, ex => unbindOk.SetException(ex));
+            SetExpectedReplyMethod((Command.Exchange.ClassId, Command.Exchange.UnbindOk), ex => unbindOk.SetException(ex));
 
             var buffer = await socket.GetWriteBuffer();
 

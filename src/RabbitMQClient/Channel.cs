@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Binary;
-using System.Collections.Generic;
 using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
@@ -22,9 +21,9 @@ namespace RabbitMQClient
         readonly Socket socket;
         readonly SemaphoreSlim semaphore;
 
-        ushort expectedClassId;
-        ushort expectedMethodId;
-        Action<Exception> expectedMethodErrorAction;
+        bool replyIsExpected;
+        (ushort classId, ushort methodId) expectedMethod;
+        Action<Exception> expectedMethodError;
 
         TaskCompletionSource<bool> openOk;
         TaskCompletionSource<bool> closeOk;
@@ -41,44 +40,52 @@ namespace RabbitMQClient
             Basic = new Basic(channelNumber, socket, semaphore, SetExpectedReplyMethod);
         }
 
-        void SetExpectedReplyMethod(ushort classId, ushort methodId, Action<Exception> errorAction)
+        void SetExpectedReplyMethod((ushort classId, ushort methodId) method, Action<Exception> error)
         {
-            expectedClassId = classId;
-            expectedMethodId = methodId;
-            expectedMethodErrorAction = errorAction;
+            expectedMethod = method;
+            expectedMethodError = error;
+
+            replyIsExpected = true;
         }
 
-        internal void HandleIncomingMethod(ushort classId, ushort methodId, ReadableBuffer arguments)
+        internal void HandleIncomingMethod((ushort classId, ushort methodId) method, ReadableBuffer arguments)
         {
             try
             {
-                if (classId != expectedClassId || methodId != expectedMethodId)
+                if (replyIsExpected && !method.Equals(expectedMethod))
                 {
-                    expectedMethodErrorAction(new Exception($"Expected ClassId {expectedClassId} MethodId {expectedMethodId}. Received ClassId {classId} MethodId {methodId}."));
+                    expectedMethodError(new Exception($"Expected reply method {expectedMethod}. Received {method}."));
+
+                    // TODO send channel close here with error
+                    return;
                 }
 
-                switch (classId)
+                switch (method.classId)
                 {
                     case Command.Channel.ClassId:
-                        HandleIncomingMethod(methodId, arguments);
+                        HandleIncomingMethod(method.methodId, arguments);
                         break;
 
                     case Command.Exchange.ClassId:
-                        Exchange.HandleIncomingMethod(methodId, arguments);
+                        Exchange.HandleIncomingMethod(method.methodId, arguments);
                         break;
 
                     case Command.Queue.ClassId:
-                        Queue.HandleIncomingMethod(methodId, arguments);
+                        Queue.HandleIncomingMethod(method.methodId, arguments);
                         break;
 
                     case Command.Basic.ClassId:
-                        Basic.HandleIncomingMethod(methodId, arguments);
+                        Basic.HandleIncomingMethod(method.methodId, arguments);
                         break;
                 }
             }
             finally
             {
-                semaphore.Release();
+                if (replyIsExpected)
+                {
+                    replyIsExpected = false;
+                    semaphore.Release();
+                }
             }
         }
 
@@ -110,7 +117,7 @@ namespace RabbitMQClient
             await semaphore.WaitAsync();
 
             openOk = new TaskCompletionSource<bool>();
-            SetExpectedReplyMethod(Command.Channel.ClassId, Command.Channel.OpenOk, ex => openOk.SetException(ex));
+            SetExpectedReplyMethod((Command.Channel.ClassId, Command.Channel.OpenOk), ex => openOk.SetException(ex));
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -141,7 +148,7 @@ namespace RabbitMQClient
             await semaphore.WaitAsync();
 
             closeOk = new TaskCompletionSource<bool>();
-            SetExpectedReplyMethod(Command.Channel.ClassId, Command.Channel.CloseOk, ex => closeOk.SetException(ex));
+            SetExpectedReplyMethod((Command.Channel.ClassId, Command.Channel.CloseOk), ex => closeOk.SetException(ex));
 
             var buffer = await socket.GetWriteBuffer();
 
