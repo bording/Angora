@@ -48,6 +48,17 @@ namespace RabbitMQClient
             replyIsExpected = true;
         }
 
+        public void Handle_Connection_Close(ushort replyCode, string replyText, uint method)
+        {
+            if (replyIsExpected)
+            {
+                var classId = method >> 16;
+                var methodId = method << 16 >> 16;
+
+                expectedMethodError(new Exception($"Connection Closed: {replyCode} {replyText}. ClassId: {classId} MethodId: {methodId}"));
+            }
+        }
+
         internal void HandleIncomingMethod(uint method, ReadableBuffer arguments)
         {
             try

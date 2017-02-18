@@ -79,13 +79,21 @@ namespace RabbitMQClient
             return channel;
         }
 
-        public async Task Close()
+        public Task Close()
+        {
+            return Close(true);
+        }
+
+        async Task Close(bool client)
         {
             if (isOpen)
             {
                 isOpen = false;
 
-                await Send_Close();
+                if (client)
+                {
+                    await Send_Close();
+                }
 
                 await socket.Close();
             }
@@ -189,7 +197,7 @@ namespace RabbitMQClient
             return Task.CompletedTask;
         }
 
-        Task HandleIncomingMethod(uint method, ReadableBuffer arguments)
+        async Task HandleIncomingMethod(uint method, ReadableBuffer arguments)
         {
             switch (method)
             {
@@ -198,7 +206,8 @@ namespace RabbitMQClient
                     break;
 
                 case Method.Connection.Tune:
-                    return Handle_Tune(arguments);
+                    await Handle_Tune(arguments);
+                    break;
 
                 case Method.Connection.OpenOk:
                     Handle_OpenOk();
@@ -207,9 +216,11 @@ namespace RabbitMQClient
                 case Method.Connection.CloseOk:
                     Handle_CloseOk();
                     break;
-            }
 
-            return Task.CompletedTask;
+                case Method.Connection.Close:
+                    await Handle_Close(arguments);
+                    break;
+            }
         }
 
         struct StartResult
@@ -266,6 +277,24 @@ namespace RabbitMQClient
         void Handle_CloseOk()
         {
             closeOk.SetResult(true);
+        }
+
+        async Task Handle_Close(ReadableBuffer arguments)
+        {
+            var replyCode = arguments.ReadBigEndian<ushort>();
+            arguments = arguments.Slice(sizeof(ushort));
+
+            var (replyText, cursor) = arguments.ReadShortString();
+            arguments = arguments.Slice(cursor);
+
+            var method = arguments.ReadBigEndian<uint>();
+
+            foreach (var channel in channels)
+            {
+                channel.Value.Handle_Connection_Close(replyCode, replyText, method);
+            }
+
+            await Close(false);
         }
 
         async Task<StartResult> Send_ProtocolHeader()
