@@ -1,6 +1,6 @@
 ﻿namespace RabbitMQClient
 {
-    public static class AmqpConstants
+    static class AmqpConstants
     {
         public const uint FrameHeaderSize = 7;
         public const byte FrameEnd = 0xCE;
