@@ -11,6 +11,8 @@ namespace RabbitMQClient
 {
     class Socket
     {
+        public bool HeartbeatNeeded { get; private set; } = true;
+
         SocketConnection connection;
         SemaphoreSlim semaphore = new SemaphoreSlim(1, 1);
 
@@ -28,8 +30,9 @@ namespace RabbitMQClient
             return connection.Output.Alloc(minimumSize);
         }
 
-        public void ReleaseWriteBuffer()
+        public void ReleaseWriteBuffer(bool wroteHeartbeat = false)
         {
+            HeartbeatNeeded = wroteHeartbeat;
             semaphore.Release();
         }
 

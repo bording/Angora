@@ -149,18 +149,21 @@ namespace RabbitMQClient
 
                 try
                 {
-                    uint length = 0;
+                    if (socket.HeartbeatNeeded)
+                    {
+                        uint length = 0;
 
-                    buffer.WriteBigEndian(FrameType.Heartbeat);
-                    buffer.WriteBigEndian(connectionChannelNumber);
-                    buffer.WriteBigEndian(length);
-                    buffer.WriteBigEndian(FrameEnd);
+                        buffer.WriteBigEndian(FrameType.Heartbeat);
+                        buffer.WriteBigEndian(connectionChannelNumber);
+                        buffer.WriteBigEndian(length);
+                        buffer.WriteBigEndian(FrameEnd);
+                    }
 
                     await buffer.FlushAsync();
                 }
                 finally
                 {
-                    socket.ReleaseWriteBuffer();
+                    socket.ReleaseWriteBuffer(true);
                 }
 
                 await Task.Delay(TimeSpan.FromSeconds(interval));
