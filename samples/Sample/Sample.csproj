@@ -6,7 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\RabbitMQClient\RabbitMQClient.csproj" />
+    <ProjectReference Include="..\..\src\Angora\Angora.csproj" />
   </ItemGroup>
 
 </Project>

@@ -7,7 +7,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{F7982BD4-604
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{C1D7C356-4377-4B2B-828F-A3FDCD185005}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RabbitMQClient", "src\RabbitMQClient\RabbitMQClient.csproj", "{E8609CF9-82CC-4CC1-94D3-A002188C0284}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Angora", "src\Angora\Angora.csproj", "{E8609CF9-82CC-4CC1-94D3-A002188C0284}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Sample", "samples\Sample\Sample.csproj", "{7CF23DAB-4721-4C7E-AE88-EA599D90E03B}"
 EndProject
