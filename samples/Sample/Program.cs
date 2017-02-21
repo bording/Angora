@@ -31,11 +31,12 @@ namespace Sample
 
             var test1Result = await channel.Queue.Declare("test1", false, true, false, false, arguments);
             var test2Result = await channel.Queue.Declare("test2", false, true, false, false, null);
+            var test3Result = await channel.Queue.Declare("test3", false, true, false, false, null);
             var generatedResult = await channel.Queue.Declare("", false, true, true, false, null);
 
             await channel.Exchange.Declare("test1", "fanout", false, true, false, false, null);
             await channel.Exchange.Declare("test2", "fanout", false, true, false, false, null);
-            await channel.Exchange.Declare("test3", "fanout", false, true, false, false, null);
+            await channel.Exchange.Declare("test3", "direct", false, true, false, false, null);
 
             await channel.Exchange.Bind("test1", "test3", "key", arguments);
             await channel.Exchange.Unbind("test1", "test3", "key", arguments);
@@ -43,6 +44,7 @@ namespace Sample
             await channel.Exchange.Declare("test-internal", "fanout", false, true, false, true, null);
 
             await channel.Queue.Bind("test1", "test1", "", null);
+            await channel.Queue.Bind("test3", "test3", "foo", null);
 
             await channel.Queue.Bind("test2", "test1", "foo", null);
             await channel.Queue.Unbind("test2", "test1", "foo", null);
@@ -58,6 +60,16 @@ namespace Sample
             var consumerTag = await channel.Basic.Consume("test1", null, false, false, null);
 
             await channel.Basic.Recover();
+
+            var properties = new MessageProperties();
+            properties.ContentType = "message";
+            properties.AppId = "123";
+            properties.Timestamp = DateTime.UtcNow;
+            properties.Headers = new Dictionary<string, object>();
+            properties.Headers.Add("MessageId", Guid.NewGuid().ToString());
+            properties.Headers.Add("OtherHeader", "another value goes here");
+
+            await channel.Basic.Publish("test3", "foo", true, properties, System.Text.Encoding.UTF8.GetBytes("Message Payload"));
 
             Console.WriteLine("Press any key to quit");
             Console.ReadKey();

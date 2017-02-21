@@ -9,8 +9,8 @@
         public static class FrameType
         {
             public const byte Method = 1;
-            public const byte Header = 2;
-            public const byte Body = 3;
+            public const byte ContentHeader = 2;
+            public const byte ContentBody = 3;
             public const byte Heartbeat = 8;
         }
 

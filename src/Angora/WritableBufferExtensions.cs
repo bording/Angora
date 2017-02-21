@@ -215,5 +215,94 @@ namespace Angora
                 buffer.WriteBigEndian(value[i]);
             }
         }
+
+        public static void WriteBasicProperties(this WritableBuffer buffer, MessageProperties properties)
+        {
+            buffer.Ensure(sizeof(ushort));
+            var flagsBookmark = buffer.Memory.Span;
+            buffer.Advance(sizeof(ushort));
+
+            var flags = (ushort)0;
+
+            if (properties.ContentType != null)
+            {
+                flags |= 1 << 15;
+                buffer.WriteShortString(properties.ContentType);
+            }
+
+            if (properties.ContentEncoding != null)
+            {
+                flags |= 1 << 14;
+                buffer.WriteShortString(properties.ContentEncoding);
+            }
+
+            if (properties.Headers != null)
+            {
+                flags |= 1 << 13;
+                buffer.WriteTable(properties.Headers);
+            }
+
+            if (properties.DeliveryMode != 0)
+            {
+                flags |= 1 << 12;
+                buffer.WriteBigEndian(properties.DeliveryMode);
+            }
+
+            if (properties.Priority != 0)
+            {
+                flags |= 1 << 11;
+                buffer.WriteBigEndian(properties.Priority);
+            }
+
+            if (properties.CorrelationId != null)
+            {
+                flags |= 1 << 10;
+                buffer.WriteShortString(properties.CorrelationId);
+            }
+
+            if (properties.ReplyTo != null)
+            {
+                flags |= 1 << 9;
+                buffer.WriteShortString(properties.ReplyTo);
+            }
+
+            if (properties.Expiration != null)
+            {
+                flags |= 1 << 8;
+                buffer.WriteShortString(properties.Expiration);
+            }
+
+            if (properties.MessageId != null)
+            {
+                flags |= 1 << 7;
+                buffer.WriteShortString(properties.MessageId);
+            }
+
+            if (properties.Timestamp != default(DateTime))
+            {
+                flags |= 1 << 6;
+                buffer.WriteTimestamp(properties.Timestamp);
+            }
+
+            if (properties.Type != null)
+            {
+                flags |= 1 << 5;
+                buffer.WriteShortString(properties.Type);
+            }
+
+            if (properties.UserId != null)
+            {
+                flags |= 1 << 4;
+                buffer.WriteShortString(properties.UserId);
+            }
+
+            if (properties.AppId != null)
+            {
+                flags |= 1 << 3;
+                buffer.WriteShortString(properties.AppId);
+            }
+
+            flagsBookmark.WriteBigEndian(flags);
+        }
     }
 }

@@ -200,5 +200,61 @@ namespace Angora
             await recoverOk.Task;
         }
 
+        public async Task Publish(string exchange, string routingKey, bool mandatory, MessageProperties properties, Span<byte> body)
+        {
+            await pendingReply.WaitAsync();
+
+            var buffer = await socket.GetWriteBuffer();
+
+            try
+            {
+                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, channelNumber);
+
+                buffer.WriteBigEndian(Method.Basic.Publish);
+                buffer.WriteBigEndian(Reserved);
+                buffer.WriteBigEndian(Reserved);
+                buffer.WriteShortString(exchange);
+                buffer.WriteShortString(routingKey);
+                buffer.WriteBits(mandatory);
+
+                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
+                buffer.WriteBigEndian(FrameEnd);
+
+                //ContentHeader
+                payloadSizeHeader = buffer.WriteFrameHeader(FrameType.ContentHeader, channelNumber);
+
+                var bytesWrittenBefore = (uint)buffer.BytesWritten;
+
+                buffer.WriteBigEndian(ClassId.Basic);
+                buffer.WriteBigEndian(Reserved);
+                buffer.WriteBigEndian(Reserved);
+                buffer.WriteBigEndian(Convert.ToUInt64(body.Length));
+                buffer.WriteBasicProperties(properties);
+
+                var contentHeaderSize = (uint)buffer.BytesWritten - bytesWrittenBefore;
+                payloadSizeHeader.WriteBigEndian(contentHeaderSize);
+                buffer.WriteBigEndian(FrameEnd);
+
+                //ContentBody
+                //TODO this needs to respect max frame size and split into multiple frames
+
+                payloadSizeHeader = buffer.WriteFrameHeader(FrameType.ContentBody, channelNumber);
+
+                bytesWrittenBefore = (uint)buffer.BytesWritten;
+
+                buffer.Write(body);
+
+                var contentBodySize = (uint)buffer.BytesWritten - bytesWrittenBefore;
+                payloadSizeHeader.WriteBigEndian(contentBodySize);
+                buffer.WriteBigEndian(FrameEnd);
+
+                await buffer.FlushAsync();
+            }
+            finally
+            {
+                socket.ReleaseWriteBuffer();
+                pendingReply.Release(); //TODO this won't get called if GetWriteBuffer throws
+            }
+        }
     }
 }
