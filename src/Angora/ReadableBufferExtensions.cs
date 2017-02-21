@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO.Pipelines;
 using System.Text;
 
-namespace RabbitMQClient
+namespace Angora
 {
     static class ReadableBufferExtensions
     {

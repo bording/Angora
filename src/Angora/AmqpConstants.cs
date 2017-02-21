@@ -1,4 +1,4 @@
-﻿namespace RabbitMQClient
+﻿namespace Angora
 {
     static class AmqpConstants
     {

@@ -7,9 +7,9 @@ using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 
-using static RabbitMQClient.AmqpConstants;
+using static Angora.AmqpConstants;
 
-namespace RabbitMQClient
+namespace Angora
 {
     public class Connection
     {
@@ -331,7 +331,7 @@ namespace RabbitMQClient
 
                 var clientProperties = new Dictionary<string, object>
                 {
-                    { "product", "RabbitMQClient" },
+                    { "product", "Angora" },
                     { "capabilities", capabilities },
                     { "connection_name", connectionName }
                 };

@@ -4,9 +4,9 @@ using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
 
-using static RabbitMQClient.AmqpConstants;
+using static Angora.AmqpConstants;
 
-namespace RabbitMQClient
+namespace Angora
 {
     public class Channel
     {

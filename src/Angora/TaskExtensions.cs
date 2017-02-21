@@ -1,6 +1,6 @@
 ﻿using System.Threading.Tasks;
 
-namespace RabbitMQClient
+namespace Angora
 {
     static class TaskExtensions
     {
