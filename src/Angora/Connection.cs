@@ -34,10 +34,16 @@ namespace Angora
         readonly TaskCompletionSource<StartResult> startSent = new TaskCompletionSource<StartResult>();
         readonly TaskCompletionSource<bool> openOk = new TaskCompletionSource<bool>();
         readonly TaskCompletionSource<bool> closeOk = new TaskCompletionSource<bool>();
-        readonly TaskCompletionSource<bool> readyToOpenConnection = new TaskCompletionSource<bool>();
+        readonly TaskCompletionSource<(ushort channelMax, uint frameMax, uint heartbeatInterval)> readyToOpenConnection = new TaskCompletionSource<(ushort channelMax, uint frameMax, uint heartbeatInterval)>();
 
         ushort nextChannelNumber;
         bool isOpen;
+
+        public ushort ChannelMax { get; private set; }
+
+        public uint FrameMax { get; private set; }
+
+        public uint HeartbeatInterval { get; private set; }
 
         internal Connection(string hostName, string userName, string password, string virtualHost)
         {
@@ -64,14 +70,14 @@ namespace Angora
             var startResult = await Send_ProtocolHeader();
             await Send_StartOk(connectionName);
 
-            await readyToOpenConnection.Task;
+            (ChannelMax, FrameMax, HeartbeatInterval) = await readyToOpenConnection.Task;
 
             isOpen = await Send_Open();
         }
 
         public async Task<Channel> CreateChannel()
         {
-            var channel = new Channel(socket, ++nextChannelNumber);
+            var channel = new Channel(socket, FrameMax - TotalFrameOverhead, ++nextChannelNumber);
             channels.Add(channel.ChannelNumber, channel);
 
             await channel.Open();
@@ -377,7 +383,7 @@ namespace Angora
                 socket.ReleaseWriteBuffer();
             }
 
-            readyToOpenConnection.SetResult(true);
+            readyToOpenConnection.SetResult((channelMax, frameMax, heartbeat));
         }
 
         async Task<bool> Send_Open()

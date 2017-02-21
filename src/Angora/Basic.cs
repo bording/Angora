@@ -13,6 +13,7 @@ namespace Angora
     {
         readonly ushort channelNumber;
         readonly Socket socket;
+        readonly uint maxContentBodySize;
         readonly SemaphoreSlim pendingReply;
         readonly Action<uint, Action<Exception>> SetExpectedReplyMethod;
 
@@ -21,10 +22,11 @@ namespace Angora
         TaskCompletionSource<string> cancelOk;
         TaskCompletionSource<bool> recoverOk;
 
-        internal Basic(ushort channelNumber, Socket socket, SemaphoreSlim pendingReply, Action<uint, Action<Exception>> setExpectedReplyMethod)
+        internal Basic(ushort channelNumber, Socket socket, uint maxContentBodySize, SemaphoreSlim pendingReply, Action<uint, Action<Exception>> setExpectedReplyMethod)
         {
             this.channelNumber = channelNumber;
             this.socket = socket;
+            this.maxContentBodySize = maxContentBodySize;
             this.pendingReply = pendingReply;
             SetExpectedReplyMethod = setExpectedReplyMethod;
         }
@@ -220,33 +222,27 @@ namespace Angora
                 payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
                 buffer.WriteBigEndian(FrameEnd);
 
-                //ContentHeader
-                payloadSizeHeader = buffer.WriteFrameHeader(FrameType.ContentHeader, channelNumber);
+                WriteContentHeaderFrame(ref buffer, properties, (ulong)body.Length);
 
-                var bytesWrittenBefore = (uint)buffer.BytesWritten;
+                var framesToWrite = body.Length > 0;
 
-                buffer.WriteBigEndian(ClassId.Basic);
-                buffer.WriteBigEndian(Reserved);
-                buffer.WriteBigEndian(Reserved);
-                buffer.WriteBigEndian(Convert.ToUInt64(body.Length));
-                buffer.WriteBasicProperties(properties);
+                while (framesToWrite)
+                {
+                    Span<byte> frame;
 
-                var contentHeaderSize = (uint)buffer.BytesWritten - bytesWrittenBefore;
-                payloadSizeHeader.WriteBigEndian(contentHeaderSize);
-                buffer.WriteBigEndian(FrameEnd);
+                    if (body.Length > maxContentBodySize)
+                    {
+                        frame = body.Slice(0, (int)maxContentBodySize);
+                        body = body.Slice((int)maxContentBodySize);
+                    }
+                    else
+                    {
+                        frame = body;
+                        framesToWrite = false;
+                    }
 
-                //ContentBody
-                //TODO this needs to respect max frame size and split into multiple frames
-
-                payloadSizeHeader = buffer.WriteFrameHeader(FrameType.ContentBody, channelNumber);
-
-                bytesWrittenBefore = (uint)buffer.BytesWritten;
-
-                buffer.Write(body);
-
-                var contentBodySize = (uint)buffer.BytesWritten - bytesWrittenBefore;
-                payloadSizeHeader.WriteBigEndian(contentBodySize);
-                buffer.WriteBigEndian(FrameEnd);
+                    WriteContentBodyFrame(ref buffer, frame);
+                }
 
                 await buffer.FlushAsync();
             }
@@ -255,6 +251,36 @@ namespace Angora
                 socket.ReleaseWriteBuffer();
                 pendingReply.Release(); //TODO this won't get called if GetWriteBuffer throws
             }
+        }
+
+        void WriteContentHeaderFrame(ref WritableBuffer buffer, MessageProperties properties, ulong length)
+        {
+            var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.ContentHeader, channelNumber);
+
+            var bytesWrittenBefore = (uint)buffer.BytesWritten;
+
+            buffer.WriteBigEndian(ClassId.Basic);
+            buffer.WriteBigEndian(Reserved);
+            buffer.WriteBigEndian(Reserved);
+            buffer.WriteBigEndian(length);
+            buffer.WriteBasicProperties(properties);
+
+            payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - bytesWrittenBefore);
+
+            buffer.WriteBigEndian(FrameEnd);
+        }
+
+        void WriteContentBodyFrame(ref WritableBuffer buffer, Span<byte> body)
+        {
+            var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.ContentBody, channelNumber);
+
+            var bytesWrittenBefore = (uint)buffer.BytesWritten;
+
+            buffer.Write(body);
+
+            payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - bytesWrittenBefore);
+
+            buffer.WriteBigEndian(FrameEnd);
         }
     }
 }

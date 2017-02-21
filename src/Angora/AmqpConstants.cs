@@ -3,6 +3,7 @@
     static class AmqpConstants
     {
         public const uint FrameHeaderSize = 7;
+        public const uint TotalFrameOverhead = FrameHeaderSize + sizeof(byte);
         public const byte FrameEnd = 0xCE;
         public const byte Reserved = 0x00;
 

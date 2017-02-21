@@ -70,6 +70,7 @@ namespace Sample
             properties.Headers.Add("OtherHeader", "another value goes here");
 
             await channel.Basic.Publish("test3", "foo", true, properties, System.Text.Encoding.UTF8.GetBytes("Message Payload"));
+            await channel.Basic.Publish("test3", "foo", true, properties, new byte[200000]);
 
             Console.WriteLine("Press any key to quit");
             Console.ReadKey();

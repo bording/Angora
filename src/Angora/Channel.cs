@@ -28,7 +28,7 @@ namespace Angora
         TaskCompletionSource<bool> openOk;
         TaskCompletionSource<bool> closeOk;
 
-        internal Channel(Socket socket, ushort channelNumber)
+        internal Channel(Socket socket, uint maxContentBodySize, ushort channelNumber)
         {
             this.socket = socket;
             ChannelNumber = channelNumber;
@@ -37,7 +37,7 @@ namespace Angora
 
             Exchange = new Exchange(channelNumber, socket, pendingReply, SetExpectedReplyMethod);
             Queue = new Queue(channelNumber, socket, pendingReply, SetExpectedReplyMethod);
-            Basic = new Basic(channelNumber, socket, pendingReply, SetExpectedReplyMethod);
+            Basic = new Basic(channelNumber, socket, maxContentBodySize, pendingReply, SetExpectedReplyMethod);
         }
 
         void SetExpectedReplyMethod(uint method, Action<Exception> error)
