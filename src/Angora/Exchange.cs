@@ -15,18 +15,20 @@ namespace Angora
         readonly Socket socket;
         readonly SemaphoreSlim pendingReply;
         readonly Action<uint, Action<Exception>> SetExpectedReplyMethod;
+        readonly Action ThrowIfClosed;
 
         TaskCompletionSource<bool> declareOk;
         TaskCompletionSource<bool> deleteOk;
         TaskCompletionSource<bool> bindOk;
         TaskCompletionSource<bool> unbindOk;
 
-        internal Exchange(ushort channelNumber, Socket socket, SemaphoreSlim pendingReply, Action<uint, Action<Exception>> setExpectedReplyMethod)
+        internal Exchange(ushort channelNumber, Socket socket, SemaphoreSlim pendingReply, Action<uint, Action<Exception>> setExpectedReplyMethod, Action throwIfClosed)
         {
             this.channelNumber = channelNumber;
             this.socket = socket;
             this.pendingReply = pendingReply;
             SetExpectedReplyMethod = setExpectedReplyMethod;
+            ThrowIfClosed = throwIfClosed;
         }
 
         internal void HandleIncomingMethod(uint method, ReadableBuffer arguments)
@@ -70,6 +72,8 @@ namespace Angora
 
         public async Task Declare(string exchangeName, string type, bool passive, bool durable, bool autoDelete, bool @internal, Dictionary<string, object> arguments)
         {
+            ThrowIfClosed();
+
             await pendingReply.WaitAsync();
 
             declareOk = new TaskCompletionSource<bool>();
@@ -106,6 +110,8 @@ namespace Angora
 
         public async Task Delete(string exchange, bool onlyIfUnused)
         {
+            ThrowIfClosed();
+
             await pendingReply.WaitAsync();
 
             deleteOk = new TaskCompletionSource<bool>();
@@ -140,6 +146,8 @@ namespace Angora
 
         public async Task Bind(string source, string destination, string routingKey, Dictionary<string, object> arguments)
         {
+            ThrowIfClosed();
+
             await pendingReply.WaitAsync();
 
             bindOk = new TaskCompletionSource<bool>();
@@ -177,6 +185,8 @@ namespace Angora
 
         public async Task Unbind(string source, string destination, string routingKey, Dictionary<string, object> arguments)
         {
+            ThrowIfClosed();
+
             await pendingReply.WaitAsync();
 
             unbindOk = new TaskCompletionSource<bool>();

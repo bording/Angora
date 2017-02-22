@@ -15,6 +15,7 @@ namespace Angora
         readonly Socket socket;
         readonly SemaphoreSlim pendingReply;
         readonly Action<uint, Action<Exception>> SetExpectedReplyMethod;
+        readonly Action ThrowIfClosed;
 
         TaskCompletionSource<DeclareResult> declareOk;
         TaskCompletionSource<bool> bindOk;
@@ -22,12 +23,13 @@ namespace Angora
         TaskCompletionSource<uint> purgeOk;
         TaskCompletionSource<uint> deleteOk;
 
-        internal Queue(ushort channelNumber, Socket socket, SemaphoreSlim pendingReply, Action<uint, Action<Exception>> setExpectedReplyMethod)
+        internal Queue(ushort channelNumber, Socket socket, SemaphoreSlim pendingReply, Action<uint, Action<Exception>> setExpectedReplyMethod, Action throwIfClosed)
         {
             this.channelNumber = channelNumber;
             this.socket = socket;
             this.pendingReply = pendingReply;
             SetExpectedReplyMethod = setExpectedReplyMethod;
+            ThrowIfClosed = throwIfClosed;
         }
 
         internal void HandleIncomingMethod(uint method, ReadableBuffer arguments)
@@ -101,6 +103,8 @@ namespace Angora
 
         public async Task<DeclareResult> Declare(string queueName, bool passive, bool durable, bool exclusive, bool autoDelete, Dictionary<string, object> arguments)
         {
+            ThrowIfClosed();
+
             await pendingReply.WaitAsync();
 
             declareOk = new TaskCompletionSource<DeclareResult>();
@@ -135,6 +139,8 @@ namespace Angora
 
         public async Task Bind(string queue, string exchange, string routingKey, Dictionary<string, object> arguments)
         {
+            ThrowIfClosed();
+
             await pendingReply.WaitAsync();
 
             bindOk = new TaskCompletionSource<bool>();
@@ -171,6 +177,8 @@ namespace Angora
 
         public async Task Unbind(string queue, string exchange, string routingKey, Dictionary<string, object> arguments)
         {
+            ThrowIfClosed();
+
             await pendingReply.WaitAsync();
 
             unbindOk = new TaskCompletionSource<bool>();
@@ -206,6 +214,8 @@ namespace Angora
 
         public async Task<uint> Purge(string queue)
         {
+            ThrowIfClosed();
+
             await pendingReply.WaitAsync();
 
             purgeOk = new TaskCompletionSource<uint>();
@@ -239,6 +249,8 @@ namespace Angora
 
         public async Task<uint> Delete(string queue, bool onlyIfUnused, bool onlyIfEmpty)
         {
+            ThrowIfClosed();
+
             await pendingReply.WaitAsync();
 
             deleteOk = new TaskCompletionSource<uint>();

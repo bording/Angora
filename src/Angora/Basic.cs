@@ -16,19 +16,21 @@ namespace Angora
         readonly uint maxContentBodySize;
         readonly SemaphoreSlim pendingReply;
         readonly Action<uint, Action<Exception>> SetExpectedReplyMethod;
+        readonly Action ThrowIfClosed;
 
         TaskCompletionSource<bool> qosOk;
         TaskCompletionSource<string> consumeOk;
         TaskCompletionSource<string> cancelOk;
         TaskCompletionSource<bool> recoverOk;
 
-        internal Basic(ushort channelNumber, Socket socket, uint maxContentBodySize, SemaphoreSlim pendingReply, Action<uint, Action<Exception>> setExpectedReplyMethod)
+        internal Basic(ushort channelNumber, Socket socket, uint maxContentBodySize, SemaphoreSlim pendingReply, Action<uint, Action<Exception>> setExpectedReplyMethod, Action throwIfClosed)
         {
             this.channelNumber = channelNumber;
             this.socket = socket;
             this.maxContentBodySize = maxContentBodySize;
             this.pendingReply = pendingReply;
             SetExpectedReplyMethod = setExpectedReplyMethod;
+            ThrowIfClosed = throwIfClosed;
         }
 
         internal void HandleIncomingMethod(uint method, ReadableBuffer arguments)
@@ -76,6 +78,8 @@ namespace Angora
 
         public async Task Qos(uint prefetchSize, ushort prefetchCount, bool global)
         {
+            ThrowIfClosed();
+
             await pendingReply.WaitAsync();
 
             qosOk = new TaskCompletionSource<bool>();
@@ -108,6 +112,8 @@ namespace Angora
 
         public async Task<string> Consume(string queue, string consumerTag, bool autoAck, bool exclusive, Dictionary<string, object> arguments)
         {
+            ThrowIfClosed();
+
             await pendingReply.WaitAsync();
 
             consumeOk = new TaskCompletionSource<string>();
@@ -143,6 +149,8 @@ namespace Angora
 
         public async Task<string> Cancel(string consumerTag)
         {
+            ThrowIfClosed();
+
             await pendingReply.WaitAsync();
 
             cancelOk = new TaskCompletionSource<string>();
@@ -174,6 +182,8 @@ namespace Angora
 
         public async Task Recover()
         {
+            ThrowIfClosed();
+
             await pendingReply.WaitAsync();
 
             recoverOk = new TaskCompletionSource<bool>();
@@ -204,6 +214,8 @@ namespace Angora
 
         public async Task Publish(string exchange, string routingKey, bool mandatory, MessageProperties properties, Span<byte> body)
         {
+            ThrowIfClosed();
+
             await pendingReply.WaitAsync();
 
             var buffer = await socket.GetWriteBuffer();

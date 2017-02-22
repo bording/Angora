@@ -12,6 +12,8 @@ namespace Angora
     {
         public ushort ChannelNumber { get; }
 
+        public bool IsOpen { get; private set; }
+
         public Exchange Exchange { get; }
 
         public Queue Queue { get; }
@@ -35,9 +37,9 @@ namespace Angora
 
             pendingReply = new SemaphoreSlim(1, 1);
 
-            Exchange = new Exchange(channelNumber, socket, pendingReply, SetExpectedReplyMethod);
-            Queue = new Queue(channelNumber, socket, pendingReply, SetExpectedReplyMethod);
-            Basic = new Basic(channelNumber, socket, maxContentBodySize, pendingReply, SetExpectedReplyMethod);
+            Exchange = new Exchange(channelNumber, socket, pendingReply, SetExpectedReplyMethod, ThrowIfClosed);
+            Queue = new Queue(channelNumber, socket, pendingReply, SetExpectedReplyMethod, ThrowIfClosed);
+            Basic = new Basic(channelNumber, socket, maxContentBodySize, pendingReply, SetExpectedReplyMethod, ThrowIfClosed);
         }
 
         void SetExpectedReplyMethod(uint method, Action<Exception> error)
@@ -50,6 +52,8 @@ namespace Angora
 
         public void Handle_Connection_Close(ushort replyCode, string replyText, uint method)
         {
+            IsOpen = false;
+
             if (replyIsExpected)
             {
                 var classId = method >> 16;
@@ -62,11 +66,13 @@ namespace Angora
             }
         }
 
-        internal void HandleIncomingMethod(uint method, ReadableBuffer arguments)
+        internal async Task HandleIncomingMethod(uint method, ReadableBuffer arguments)
         {
             try
             {
-                if (replyIsExpected && method != expectedMethod)
+                //TODO properly handle all incoming request methods when there is a reply
+                //not just special casing for Close
+                if (replyIsExpected && method != expectedMethod && method != Method.Channel.Close)
                 {
                     expectedMethodError(new Exception($"Expected reply method {expectedMethod}. Received {method}."));
 
@@ -79,7 +85,7 @@ namespace Angora
                 switch (classId)
                 {
                     case ClassId.Channel:
-                        HandleIncomingChannelMethod(method, arguments);
+                        await HandleIncomingChannelMethod(method, arguments);
                         break;
 
                     case ClassId.Exchange:
@@ -105,7 +111,7 @@ namespace Angora
             }
         }
 
-        void HandleIncomingChannelMethod(uint method, ReadableBuffer arguments)
+        async Task HandleIncomingChannelMethod(uint method, ReadableBuffer arguments)
         {
             switch (method)
             {
@@ -115,17 +121,55 @@ namespace Angora
                 case Method.Channel.CloseOk:
                     Handle_CloseOk();
                     break;
+                case Method.Channel.Close:
+                    await Handle_Close(arguments);
+                    break;
             }
         }
 
         void Handle_OpenOk()
         {
+            IsOpen = true;
             openOk.SetResult(true);
         }
 
         void Handle_CloseOk()
         {
+            IsOpen = false;
             closeOk.SetResult(true);
+        }
+
+        void ThrowIfClosed()
+        {
+            if (!IsOpen)
+            {
+                throw new Exception("Channel is closed");
+            }
+        }
+
+        async Task Handle_Close(ReadableBuffer arguments)
+        {
+            IsOpen = false;
+            await Send_CloseOk();
+
+            if (replyIsExpected)
+            {
+                var replyCode = arguments.ReadBigEndian<ushort>();
+                arguments = arguments.Slice(sizeof(ushort));
+
+                var (replyText, cursor) = arguments.ReadShortString();
+                arguments = arguments.Slice(cursor);
+
+                var method = arguments.ReadBigEndian<uint>();
+
+                var classId = method >> 16;
+                var methodId = method << 16 >> 16;
+
+                expectedMethodError(new Exception($"Channel Closed: {replyCode} {replyText}. ClassId: {classId} MethodId: {methodId}"));
+
+                replyIsExpected = false;
+                pendingReply.Release();
+            }
         }
 
         internal async Task Open()
@@ -160,6 +204,8 @@ namespace Angora
 
         public async Task Close(ushort replyCode = ChannelReplyCode.Success, string replyText = "Goodbye", ushort failingClass = 0, ushort failingMethod = 0)
         {
+            ThrowIfClosed();
+
             await pendingReply.WaitAsync();
 
             closeOk = new TaskCompletionSource<bool>();
@@ -189,6 +235,28 @@ namespace Angora
             }
 
             await closeOk.Task;
+        }
+
+        async Task Send_CloseOk()
+        {
+            var buffer = await socket.GetWriteBuffer();
+
+            try
+            {
+                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, ChannelNumber);
+
+                buffer.WriteBigEndian(Method.Channel.CloseOk);
+
+                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
+
+                buffer.WriteBigEndian(FrameEnd);
+
+                await buffer.FlushAsync();
+            }
+            finally
+            {
+                socket.ReleaseWriteBuffer();
+            }
         }
     }
 }

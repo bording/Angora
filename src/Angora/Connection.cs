@@ -187,7 +187,7 @@ namespace Angora
             }
         }
 
-        Task HandleIncomingMethodFrame(ushort channelNumber, ReadableBuffer payload)
+        async Task HandleIncomingMethodFrame(ushort channelNumber, ReadableBuffer payload)
         {
             var method = payload.ReadBigEndian<uint>();
             payload = payload.Slice(sizeof(uint));
@@ -196,14 +196,12 @@ namespace Angora
 
             if (classId == ClassId.Connection) //TODO validate channel 0
             {
-                return HandleIncomingMethod(method, payload);
+                await HandleIncomingMethod(method, payload);
             }
             else
             {
-                channels[channelNumber].HandleIncomingMethod(method, payload);
+                await channels[channelNumber].HandleIncomingMethod(method, payload);
             }
-
-            return Task.CompletedTask;
         }
 
         async Task HandleIncomingMethod(uint method, ReadableBuffer arguments)
