@@ -2,7 +2,6 @@
 using System.Binary;
 using System.Collections.Generic;
 using System.IO.Pipelines;
-using System.Threading;
 using System.Threading.Tasks;
 
 using static Angora.AmqpConstants;
