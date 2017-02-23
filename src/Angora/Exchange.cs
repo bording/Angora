@@ -13,71 +13,89 @@ namespace Angora
     {
         readonly ushort channelNumber;
         readonly Socket socket;
-        readonly SemaphoreSlim pendingReply;
-        readonly Action<uint, Action<Exception>> SetExpectedReplyMethod;
+        readonly Func<uint, object, Action<object, ReadableBuffer, Exception>, Task> SetExpectedReplyMethod;
         readonly Action ThrowIfClosed;
 
-        TaskCompletionSource<bool> declareOk;
-        TaskCompletionSource<bool> deleteOk;
-        TaskCompletionSource<bool> bindOk;
-        TaskCompletionSource<bool> unbindOk;
+        readonly Action<object, ReadableBuffer, Exception> handle_DeclareOk;
+        readonly Action<object, ReadableBuffer, Exception> handle_DeleteOk;
+        readonly Action<object, ReadableBuffer, Exception> handle_BindOk;
+        readonly Action<object, ReadableBuffer, Exception> handle_UnbindOk;
 
-        internal Exchange(ushort channelNumber, Socket socket, SemaphoreSlim pendingReply, Action<uint, Action<Exception>> setExpectedReplyMethod, Action throwIfClosed)
+        internal Exchange(ushort channelNumber, Socket socket, Func<uint, object, Action<object, ReadableBuffer, Exception>, Task> setExpectedReplyMethod, Action throwIfClosed)
         {
             this.channelNumber = channelNumber;
             this.socket = socket;
-            this.pendingReply = pendingReply;
             SetExpectedReplyMethod = setExpectedReplyMethod;
             ThrowIfClosed = throwIfClosed;
+
+            handle_DeclareOk = Handle_DeclareOk;
+            handle_DeleteOk = Handle_DeleteOk;
+            handle_BindOk = Handle_BindOk;
+            handle_UnbindOk = Handle_UnbindOk;
         }
 
-        internal void HandleIncomingMethod(uint method, ReadableBuffer arguments)
+        void Handle_DeclareOk(object tcs, ReadableBuffer arguments, Exception exception)
         {
-            switch (method)
+            var declareOk = (TaskCompletionSource<bool>)tcs;
+
+            if (exception != null)
             {
-                case Method.Exchange.DeclareOk:
-                    Handle_DeclareOk();
-                    break;
-                case Method.Exchange.DeleteOk:
-                    Handle_DeleteOk();
-                    break;
-                case Method.Exchange.BindOk:
-                    Handle_BindOk();
-                    break;
-                case Method.Exchange.UnbindOk:
-                    Handle_UnbindOk();
-                    break;
+                declareOk.SetException(exception);
+            }
+            else
+            {
+                declareOk.SetResult(true);
             }
         }
 
-        void Handle_DeclareOk()
+        void Handle_DeleteOk(object tcs, ReadableBuffer arguments, Exception exception)
         {
-            declareOk.SetResult(true);
+            var deleteOk = (TaskCompletionSource<bool>)tcs;
+
+            if (exception != null)
+            {
+                deleteOk.SetException(exception);
+            }
+            else
+            {
+                deleteOk.SetResult(true);
+            }
         }
 
-        void Handle_DeleteOk()
+        void Handle_BindOk(object tcs, ReadableBuffer arguments, Exception exception)
         {
-            deleteOk.SetResult(true);
+            var bindOk = (TaskCompletionSource<bool>)tcs;
+
+            if (exception != null)
+            {
+                bindOk.SetException(exception);
+            }
+            else
+            {
+                bindOk.SetResult(true);
+            }
         }
 
-        void Handle_BindOk()
+        void Handle_UnbindOk(object tcs, ReadableBuffer arguments, Exception exception)
         {
-            bindOk.SetResult(true);
-        }
+            var unbindOk = (TaskCompletionSource<bool>)tcs;
 
-        void Handle_UnbindOk()
-        {
-            unbindOk.SetResult(true);
+            if (exception != null)
+            {
+                unbindOk.SetException(exception);
+            }
+            else
+            {
+                unbindOk.SetResult(true);
+            }
         }
 
         public async Task Declare(string exchangeName, string type, bool passive, bool durable, bool autoDelete, bool @internal, Dictionary<string, object> arguments)
         {
             ThrowIfClosed();
 
-            await pendingReply.WaitAsync();
-
-            declareOk = new TaskCompletionSource<bool>();
-            SetExpectedReplyMethod(Method.Exchange.DeclareOk, ex => declareOk.SetException(ex));
+            var declareOk = new TaskCompletionSource<bool>();
+            await SetExpectedReplyMethod(Method.Exchange.DeclareOk, declareOk, handle_DeclareOk);
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -112,10 +130,8 @@ namespace Angora
         {
             ThrowIfClosed();
 
-            await pendingReply.WaitAsync();
-
-            deleteOk = new TaskCompletionSource<bool>();
-            SetExpectedReplyMethod(Method.Exchange.DeleteOk, ex => deleteOk.SetException(ex));
+            var deleteOk = new TaskCompletionSource<bool>();
+            await SetExpectedReplyMethod(Method.Exchange.DeleteOk, deleteOk, handle_DeleteOk);
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -148,10 +164,8 @@ namespace Angora
         {
             ThrowIfClosed();
 
-            await pendingReply.WaitAsync();
-
-            bindOk = new TaskCompletionSource<bool>();
-            SetExpectedReplyMethod(Method.Exchange.BindOk, ex => bindOk.SetException(ex));
+            var bindOk = new TaskCompletionSource<bool>();
+            await SetExpectedReplyMethod(Method.Exchange.BindOk, bindOk, handle_BindOk);
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -187,10 +201,8 @@ namespace Angora
         {
             ThrowIfClosed();
 
-            await pendingReply.WaitAsync();
-
-            unbindOk = new TaskCompletionSource<bool>();
-            SetExpectedReplyMethod(Method.Exchange.UnbindOk, ex => unbindOk.SetException(ex));
+            var unbindOk = new TaskCompletionSource<bool>();
+            await SetExpectedReplyMethod(Method.Exchange.UnbindOk, unbindOk, handle_UnbindOk);
 
             var buffer = await socket.GetWriteBuffer();
 

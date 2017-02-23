@@ -13,45 +13,27 @@ namespace Angora
     {
         readonly ushort channelNumber;
         readonly Socket socket;
-        readonly SemaphoreSlim pendingReply;
-        readonly Action<uint, Action<Exception>> SetExpectedReplyMethod;
+        readonly Func<uint, object, Action<object, ReadableBuffer, Exception>, Task> SetExpectedReplyMethod;
         readonly Action ThrowIfClosed;
 
-        TaskCompletionSource<DeclareResult> declareOk;
-        TaskCompletionSource<bool> bindOk;
-        TaskCompletionSource<bool> unbindOk;
-        TaskCompletionSource<uint> purgeOk;
-        TaskCompletionSource<uint> deleteOk;
+        readonly Action<object, ReadableBuffer, Exception> handle_DeclareOk;
+        readonly Action<object, ReadableBuffer, Exception> handle_BindOk;
+        readonly Action<object, ReadableBuffer, Exception> handle_UnbindOk;
+        readonly Action<object, ReadableBuffer, Exception> handle_PurgeOk;
+        readonly Action<object, ReadableBuffer, Exception> handle_DeleteOk;
 
-        internal Queue(ushort channelNumber, Socket socket, SemaphoreSlim pendingReply, Action<uint, Action<Exception>> setExpectedReplyMethod, Action throwIfClosed)
+        internal Queue(ushort channelNumber, Socket socket, Func<uint, object, Action<object, ReadableBuffer, Exception>, Task> setExpectedReplyMethod, Action throwIfClosed)
         {
             this.channelNumber = channelNumber;
             this.socket = socket;
-            this.pendingReply = pendingReply;
             SetExpectedReplyMethod = setExpectedReplyMethod;
             ThrowIfClosed = throwIfClosed;
-        }
 
-        internal void HandleIncomingMethod(uint method, ReadableBuffer arguments)
-        {
-            switch (method)
-            {
-                case Method.Queue.DeclareOk:
-                    Handle_DeclareOk(arguments);
-                    break;
-                case Method.Queue.BindOk:
-                    Handle_BindOk();
-                    break;
-                case Method.Queue.UnbindOk:
-                    Handle_UnbindOk();
-                    break;
-                case Method.Queue.PurgeOk:
-                    Handle_PurgeOk(arguments);
-                    break;
-                case Method.Queue.DeleteOk:
-                    Handle_DeleteOk(arguments);
-                    break;
-            }
+            handle_DeclareOk = Handle_DeclareOk;
+            handle_BindOk = Handle_BindOk;
+            handle_UnbindOk = Handle_UnbindOk;
+            handle_PurgeOk = Handle_PurgeOk;
+            handle_DeleteOk = Handle_DeleteOk;
         }
 
         public struct DeclareResult
@@ -61,54 +43,95 @@ namespace Angora
             public uint ConsumerCount;
         }
 
-        void Handle_DeclareOk(ReadableBuffer arguments)
+        void Handle_DeclareOk(object tcs, ReadableBuffer arguments, Exception exception)
         {
-            DeclareResult result;
-            ReadCursor cursor;
+            var declareOk = (TaskCompletionSource<DeclareResult>)tcs;
 
-            (result.QueueName, cursor) = arguments.ReadShortString();
-            arguments = arguments.Slice(cursor);
+            if (exception != null)
+            {
+                declareOk.SetException(exception);
+            }
+            else
+            {
+                DeclareResult result;
+                ReadCursor cursor;
 
-            result.MessageCount = arguments.ReadBigEndian<uint>();
-            arguments = arguments.Slice(sizeof(uint));
+                (result.QueueName, cursor) = arguments.ReadShortString();
+                arguments = arguments.Slice(cursor);
 
-            result.ConsumerCount = arguments.ReadBigEndian<uint>();
+                result.MessageCount = arguments.ReadBigEndian<uint>();
+                arguments = arguments.Slice(sizeof(uint));
 
-            declareOk.SetResult(result);
+                result.ConsumerCount = arguments.ReadBigEndian<uint>();
+
+                declareOk.SetResult(result);
+            }
         }
 
-        void Handle_BindOk()
+        void Handle_BindOk(object tcs, ReadableBuffer arguments, Exception exception)
         {
-            bindOk.SetResult(true);
+            var bindOk = (TaskCompletionSource<bool>)tcs;
+
+            if (exception != null)
+            {
+                bindOk.SetException(exception);
+            }
+            else
+            {
+                bindOk.SetResult(true);
+            }
         }
 
-        void Handle_UnbindOk()
+        void Handle_UnbindOk(object tcs, ReadableBuffer arguments, Exception exception)
         {
-            unbindOk.SetResult(true);
+            var unbindOk = (TaskCompletionSource<bool>)tcs;
+
+            if (exception != null)
+            {
+                unbindOk.SetException(exception);
+            }
+            else
+            {
+                unbindOk.SetResult(true);
+            }
         }
 
-        void Handle_PurgeOk(ReadableBuffer arguments)
+        void Handle_PurgeOk(object tcs, ReadableBuffer arguments, Exception exception)
         {
-            var messageCount = arguments.ReadBigEndian<uint>();
+            var purgeOk = (TaskCompletionSource<uint>)tcs;
 
-            purgeOk.SetResult(messageCount);
+            if (exception != null)
+            {
+                purgeOk.SetException(exception);
+            }
+            else
+            {
+                var messageCount = arguments.ReadBigEndian<uint>();
+                purgeOk.SetResult(messageCount);
+            }
         }
 
-        void Handle_DeleteOk(ReadableBuffer arguments)
+        void Handle_DeleteOk(object tcs, ReadableBuffer arguments, Exception exception)
         {
-            var messageCount = arguments.ReadBigEndian<uint>();
+            var deleteOk = (TaskCompletionSource<uint>)tcs;
 
-            deleteOk.SetResult(messageCount);
+            if (exception != null)
+            {
+                deleteOk.SetException(exception);
+            }
+            else
+            {
+                var messageCount = arguments.ReadBigEndian<uint>();
+                deleteOk.SetResult(messageCount);
+            }
         }
 
         public async Task<DeclareResult> Declare(string queueName, bool passive, bool durable, bool exclusive, bool autoDelete, Dictionary<string, object> arguments)
         {
             ThrowIfClosed();
 
-            await pendingReply.WaitAsync();
-
-            declareOk = new TaskCompletionSource<DeclareResult>();
-            SetExpectedReplyMethod(Method.Queue.DeclareOk, ex => declareOk.SetException(ex));
+            var declareOk = new TaskCompletionSource<DeclareResult>();
+            await SetExpectedReplyMethod(Method.Queue.DeclareOk, declareOk, handle_DeclareOk);
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -141,10 +164,8 @@ namespace Angora
         {
             ThrowIfClosed();
 
-            await pendingReply.WaitAsync();
-
-            bindOk = new TaskCompletionSource<bool>();
-            SetExpectedReplyMethod(Method.Queue.BindOk, ex => bindOk.SetException(ex));
+            var bindOk = new TaskCompletionSource<bool>();
+            await SetExpectedReplyMethod(Method.Queue.BindOk, bindOk, handle_BindOk);
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -179,10 +200,8 @@ namespace Angora
         {
             ThrowIfClosed();
 
-            await pendingReply.WaitAsync();
-
-            unbindOk = new TaskCompletionSource<bool>();
-            SetExpectedReplyMethod(Method.Queue.UnbindOk, ex => unbindOk.SetException(ex));
+            var unbindOk = new TaskCompletionSource<bool>();
+            await SetExpectedReplyMethod(Method.Queue.UnbindOk, unbindOk, handle_UnbindOk);
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -216,10 +235,8 @@ namespace Angora
         {
             ThrowIfClosed();
 
-            await pendingReply.WaitAsync();
-
-            purgeOk = new TaskCompletionSource<uint>();
-            SetExpectedReplyMethod(Method.Queue.PurgeOk, ex => purgeOk.SetException(ex));
+            var purgeOk = new TaskCompletionSource<uint>();
+            await SetExpectedReplyMethod(Method.Queue.PurgeOk, purgeOk, handle_PurgeOk);
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -251,10 +268,8 @@ namespace Angora
         {
             ThrowIfClosed();
 
-            await pendingReply.WaitAsync();
-
-            deleteOk = new TaskCompletionSource<uint>();
-            SetExpectedReplyMethod(Method.Queue.DeleteOk, ex => deleteOk.SetException(ex));
+            var deleteOk = new TaskCompletionSource<uint>();
+            await SetExpectedReplyMethod(Method.Queue.DeleteOk, deleteOk, handle_DeleteOk);
 
             var buffer = await socket.GetWriteBuffer();
 

@@ -14,76 +14,92 @@ namespace Angora
         readonly ushort channelNumber;
         readonly Socket socket;
         readonly uint maxContentBodySize;
-        readonly SemaphoreSlim pendingReply;
-        readonly Action<uint, Action<Exception>> SetExpectedReplyMethod;
+        readonly Func<uint, object, Action<object, ReadableBuffer, Exception>, Task> SetExpectedReplyMethod;
         readonly Action ThrowIfClosed;
 
-        TaskCompletionSource<bool> qosOk;
-        TaskCompletionSource<string> consumeOk;
-        TaskCompletionSource<string> cancelOk;
-        TaskCompletionSource<bool> recoverOk;
+        readonly Action<object, ReadableBuffer, Exception> handle_QosOk;
+        readonly Action<object, ReadableBuffer, Exception> handle_ConsumeOk;
+        readonly Action<object, ReadableBuffer, Exception> handle_CancelOk;
+        readonly Action<object, ReadableBuffer, Exception> handle_RecoverOk;
 
-        internal Basic(ushort channelNumber, Socket socket, uint maxContentBodySize, SemaphoreSlim pendingReply, Action<uint, Action<Exception>> setExpectedReplyMethod, Action throwIfClosed)
+        internal Basic(ushort channelNumber, Socket socket, uint maxContentBodySize, Func<uint, object, Action<object, ReadableBuffer, Exception>, Task> setExpectedReplyMethod, Action throwIfClosed)
         {
             this.channelNumber = channelNumber;
             this.socket = socket;
             this.maxContentBodySize = maxContentBodySize;
-            this.pendingReply = pendingReply;
             SetExpectedReplyMethod = setExpectedReplyMethod;
             ThrowIfClosed = throwIfClosed;
+
+            handle_QosOk = Handle_QosOk;
+            handle_ConsumeOk = Handle_ConsumeOk;
+            handle_CancelOk = Handle_CancelOk;
+            handle_RecoverOk = Handle_RecoverOk;
         }
 
-        internal void HandleIncomingMethod(uint method, ReadableBuffer arguments)
+        void Handle_QosOk(object tcs, ReadableBuffer arguments, Exception exception)
         {
-            switch (method)
+            var qosOk = (TaskCompletionSource<bool>)tcs;
+
+            if (exception != null)
             {
-                case Method.Basic.QosOk:
-                    Handle_QosOk();
-                    break;
-                case Method.Basic.ConsumeOk:
-                    Handle_ConsumeOk(arguments);
-                    break;
-                case Method.Basic.CancelOk:
-                    Handle_CancelOk(arguments);
-                    break;
-                case Method.Basic.RecoverOk:
-                    Handle_RecoverOk();
-                    break;
+                qosOk.SetException(exception);
+            }
+            else
+            {
+                qosOk.SetResult(true);
             }
         }
 
-        void Handle_QosOk()
+        void Handle_ConsumeOk(object tcs, ReadableBuffer arguments, Exception exception)
         {
-            qosOk.SetResult(true);
+            var consumeOk = (TaskCompletionSource<string>)tcs;
+
+            if (exception != null)
+            {
+                consumeOk.SetException(exception);
+            }
+            else
+            {
+                var consumerTag = arguments.ReadShortString();
+                consumeOk.SetResult(consumerTag.value);
+            }
         }
 
-        void Handle_ConsumeOk(ReadableBuffer arguments)
+        void Handle_CancelOk(object tcs, ReadableBuffer arguments, Exception exception)
         {
-            var consumerTag = arguments.ReadShortString();
+            var cancelOk = (TaskCompletionSource<string>)tcs;
 
-            consumeOk.SetResult(consumerTag.value);
+            if (exception != null)
+            {
+                cancelOk.SetException(exception);
+            }
+            else
+            {
+                var consumerTag = arguments.ReadShortString();
+                cancelOk.SetResult(consumerTag.value);
+            }
         }
 
-        void Handle_CancelOk(ReadableBuffer arguments)
+        void Handle_RecoverOk(object tcs, ReadableBuffer arguments, Exception exception)
         {
-            var consumerTag = arguments.ReadShortString();
+            var recoverOk = (TaskCompletionSource<bool>)tcs;
 
-            cancelOk.SetResult(consumerTag.value);
-        }
-
-        void Handle_RecoverOk()
-        {
-            recoverOk.SetResult(true);
+            if (exception != null)
+            {
+                recoverOk.SetException(exception);
+            }
+            else
+            {
+                recoverOk.SetResult(true);
+            }
         }
 
         public async Task Qos(uint prefetchSize, ushort prefetchCount, bool global)
         {
             ThrowIfClosed();
 
-            await pendingReply.WaitAsync();
-
-            qosOk = new TaskCompletionSource<bool>();
-            SetExpectedReplyMethod(Method.Basic.QosOk, ex => qosOk.SetException(ex));
+            var qosOk = new TaskCompletionSource<bool>();
+            await SetExpectedReplyMethod(Method.Basic.QosOk, qosOk, handle_QosOk);
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -114,10 +130,8 @@ namespace Angora
         {
             ThrowIfClosed();
 
-            await pendingReply.WaitAsync();
-
-            consumeOk = new TaskCompletionSource<string>();
-            SetExpectedReplyMethod(Method.Basic.ConsumeOk, ex => consumeOk.SetException(ex));
+            var consumeOk = new TaskCompletionSource<string>();
+            await SetExpectedReplyMethod(Method.Basic.ConsumeOk, consumeOk, handle_ConsumeOk);
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -151,10 +165,8 @@ namespace Angora
         {
             ThrowIfClosed();
 
-            await pendingReply.WaitAsync();
-
-            cancelOk = new TaskCompletionSource<string>();
-            SetExpectedReplyMethod(Method.Basic.CancelOk, ex => cancelOk.SetException(ex));
+            var cancelOk = new TaskCompletionSource<string>();
+            await SetExpectedReplyMethod(Method.Basic.CancelOk, cancelOk, handle_CancelOk);
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -184,10 +196,8 @@ namespace Angora
         {
             ThrowIfClosed();
 
-            await pendingReply.WaitAsync();
-
-            recoverOk = new TaskCompletionSource<bool>();
-            SetExpectedReplyMethod(Method.Basic.RecoverOk, ex => recoverOk.SetException(ex));
+            var recoverOk = new TaskCompletionSource<bool>();
+            await SetExpectedReplyMethod(Method.Basic.RecoverOk, recoverOk, handle_RecoverOk);
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -215,8 +225,6 @@ namespace Angora
         public async Task Publish(string exchange, string routingKey, bool mandatory, MessageProperties properties, Span<byte> body)
         {
             ThrowIfClosed();
-
-            await pendingReply.WaitAsync();
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -261,7 +269,6 @@ namespace Angora
             finally
             {
                 socket.ReleaseWriteBuffer();
-                pendingReply.Release(); //TODO this won't get called if GetWriteBuffer throws
             }
         }
 

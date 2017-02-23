@@ -21,14 +21,15 @@ namespace Angora
         public Basic Basic { get; }
 
         readonly Socket socket;
+
         readonly SemaphoreSlim pendingReply;
-
         bool replyIsExpected;
-        uint expectedMethod;
-        Action<Exception> expectedMethodError;
+        uint expectedReplyMethod;
+        object replyTaskCompletionSource;
+        Action<object, ReadableBuffer, Exception> replyHandler;
 
-        TaskCompletionSource<bool> openOk;
-        TaskCompletionSource<bool> closeOk;
+        Action<object, ReadableBuffer, Exception> handle_OpenOk;
+        Action<object, ReadableBuffer, Exception> handle_CloseOk;
 
         internal Channel(Socket socket, uint maxContentBodySize, ushort channelNumber)
         {
@@ -37,15 +38,21 @@ namespace Angora
 
             pendingReply = new SemaphoreSlim(1, 1);
 
-            Exchange = new Exchange(channelNumber, socket, pendingReply, SetExpectedReplyMethod, ThrowIfClosed);
-            Queue = new Queue(channelNumber, socket, pendingReply, SetExpectedReplyMethod, ThrowIfClosed);
-            Basic = new Basic(channelNumber, socket, maxContentBodySize, pendingReply, SetExpectedReplyMethod, ThrowIfClosed);
+            Exchange = new Exchange(channelNumber, socket, SetExpectedReplyMethod, ThrowIfClosed);
+            Queue = new Queue(channelNumber, socket, SetExpectedReplyMethod, ThrowIfClosed);
+            Basic = new Basic(channelNumber, socket, maxContentBodySize, SetExpectedReplyMethod, ThrowIfClosed);
+
+            handle_OpenOk = Handle_OpenOk;
+            handle_CloseOk = Handle_CloseOk;
         }
 
-        void SetExpectedReplyMethod(uint method, Action<Exception> error)
+        async Task SetExpectedReplyMethod(uint method, object taskCompletionSource, Action<object, ReadableBuffer, Exception> replyHandler)
         {
-            expectedMethod = method;
-            expectedMethodError = error;
+            await pendingReply.WaitAsync();
+
+            expectedReplyMethod = method;
+            replyTaskCompletionSource = taskCompletionSource;
+            this.replyHandler = replyHandler;
 
             replyIsExpected = true;
         }
@@ -59,7 +66,9 @@ namespace Angora
                 var classId = method >> 16;
                 var methodId = method << 16 >> 16;
 
-                expectedMethodError(new Exception($"Connection Closed: {replyCode} {replyText}. ClassId: {classId} MethodId: {methodId}"));
+                var exception = new Exception($"Connection Closed: {replyCode} {replyText}. ClassId: {classId} MethodId: {methodId}");
+
+                replyHandler(replyTaskCompletionSource, default(ReadableBuffer), exception);
 
                 replyIsExpected = false;
                 pendingReply.Release();
@@ -68,75 +77,66 @@ namespace Angora
 
         internal async Task HandleIncomingMethod(uint method, ReadableBuffer arguments)
         {
-            try
+            switch(method)
             {
-                //TODO properly handle all incoming request methods when there is a reply
-                //not just special casing for Close
-                if (replyIsExpected && method != expectedMethod && method != Method.Channel.Close)
-                {
-                    expectedMethodError(new Exception($"Expected reply method {expectedMethod}. Received {method}."));
-
-                    // TODO send channel close here with error
-                    return;
-                }
-
-                var classId = method >> 16;
-
-                switch (classId)
-                {
-                    case ClassId.Channel:
-                        await HandleIncomingChannelMethod(method, arguments);
-                        break;
-
-                    case ClassId.Exchange:
-                        Exchange.HandleIncomingMethod(method, arguments);
-                        break;
-
-                    case ClassId.Queue:
-                        Queue.HandleIncomingMethod(method, arguments);
-                        break;
-
-                    case ClassId.Basic:
-                        Basic.HandleIncomingMethod(method, arguments);
-                        break;
-                }
-            }
-            finally
-            {
-                if (replyIsExpected)
-                {
-                    replyIsExpected = false;
-                    pendingReply.Release();
-                }
-            }
-        }
-
-        async Task HandleIncomingChannelMethod(uint method, ReadableBuffer arguments)
-        {
-            switch (method)
-            {
-                case Method.Channel.OpenOk:
-                    Handle_OpenOk();
-                    break;
-                case Method.Channel.CloseOk:
-                    Handle_CloseOk();
-                    break;
                 case Method.Channel.Close:
                     await Handle_Close(arguments);
                     break;
+                default:
+                    HandleReplyMethod(method, arguments);
+                    break;
             }
         }
 
-        void Handle_OpenOk()
+        void HandleReplyMethod(uint method, ReadableBuffer arguments)
         {
-            IsOpen = true;
-            openOk.SetResult(true);
+            if (!replyIsExpected)
+            {
+                throw new Exception("reply received when not expecting one");
+                //TODO send channel exception
+            }
+
+            Exception exception = null;
+
+            if (method != expectedReplyMethod)
+            {
+                exception = new Exception($"Expected reply method {expectedReplyMethod}. Received {method}.");
+            }
+
+            replyHandler(replyTaskCompletionSource, arguments, exception);
+
+            replyIsExpected = false;
+            pendingReply.Release();
         }
 
-        void Handle_CloseOk()
+        void Handle_OpenOk(object tcs, ReadableBuffer arguments, Exception exception)
         {
-            IsOpen = false;
-            closeOk.SetResult(true);
+            var openOk = (TaskCompletionSource<bool>)tcs;
+
+            if (exception != null)
+            {
+                openOk.SetException(exception);
+            }
+            else
+            {
+                IsOpen = true;
+                openOk.SetResult(true);
+            }
+        }
+
+        void Handle_CloseOk(object tcs, ReadableBuffer arguments, Exception exception)
+        {
+            var closeOk = (TaskCompletionSource<bool>)tcs;
+
+            if (exception != null)
+            {
+                closeOk.SetException(exception);
+            }
+            else
+            {
+                IsOpen = false;
+                closeOk.SetResult(true);
+            }
         }
 
         void ThrowIfClosed()
@@ -165,19 +165,20 @@ namespace Angora
                 var classId = method >> 16;
                 var methodId = method << 16 >> 16;
 
-                expectedMethodError(new Exception($"Channel Closed: {replyCode} {replyText}. ClassId: {classId} MethodId: {methodId}"));
+                var exception = new Exception($"Channel Closed: {replyCode} {replyText}. ClassId: {classId} MethodId: {methodId}");
+
+                replyHandler(replyTaskCompletionSource, default(ReadableBuffer), exception);
 
                 replyIsExpected = false;
                 pendingReply.Release();
             }
         }
 
+
         internal async Task Open()
         {
-            await pendingReply.WaitAsync();
-
-            openOk = new TaskCompletionSource<bool>();
-            SetExpectedReplyMethod(Method.Channel.OpenOk, ex => openOk.SetException(ex));
+            var openOk = new TaskCompletionSource<bool>();
+            await SetExpectedReplyMethod(Method.Channel.OpenOk, openOk, handle_OpenOk);
 
             var buffer = await socket.GetWriteBuffer();
 
@@ -206,10 +207,8 @@ namespace Angora
         {
             ThrowIfClosed();
 
-            await pendingReply.WaitAsync();
-
-            closeOk = new TaskCompletionSource<bool>();
-            SetExpectedReplyMethod(Method.Channel.CloseOk, ex => closeOk.SetException(ex));
+            var closeOk = new TaskCompletionSource<bool>();
+            await SetExpectedReplyMethod(Method.Channel.CloseOk, closeOk, Handle_CloseOk);
 
             var buffer = await socket.GetWriteBuffer();
 
