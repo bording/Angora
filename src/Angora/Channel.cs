@@ -57,21 +57,11 @@ namespace Angora
             replyIsExpected = true;
         }
 
-        public void Handle_Connection_Close(ushort replyCode, string replyText, uint method)
+        void ThrowIfClosed()
         {
-            IsOpen = false;
-
-            if (replyIsExpected)
+            if (!IsOpen)
             {
-                var classId = method >> 16;
-                var methodId = method << 16 >> 16;
-
-                var exception = new Exception($"Connection Closed: {replyCode} {replyText}. ClassId: {classId} MethodId: {methodId}");
-
-                replyHandler(replyTaskCompletionSource, default(ReadableBuffer), exception);
-
-                replyIsExpected = false;
-                pendingReply.Release();
+                throw new Exception("Channel is closed");
             }
         }
 
@@ -139,11 +129,21 @@ namespace Angora
             }
         }
 
-        void ThrowIfClosed()
+        public void Handle_Connection_Close(ushort replyCode, string replyText, uint method)
         {
-            if (!IsOpen)
+            IsOpen = false;
+
+            if (replyIsExpected)
             {
-                throw new Exception("Channel is closed");
+                var classId = method >> 16;
+                var methodId = method << 16 >> 16;
+
+                var exception = new Exception($"Connection Closed: {replyCode} {replyText}. ClassId: {classId} MethodId: {methodId}");
+
+                replyHandler(replyTaskCompletionSource, default(ReadableBuffer), exception);
+
+                replyIsExpected = false;
+                pendingReply.Release();
             }
         }
 
@@ -173,7 +173,6 @@ namespace Angora
                 pendingReply.Release();
             }
         }
-
 
         internal async Task Open()
         {
