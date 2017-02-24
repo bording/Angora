@@ -29,7 +29,8 @@ namespace Angora
         readonly TaskCompletionSource<(ushort channelMax, uint frameMax, uint heartbeatInterval)> readyToOpenConnection = new TaskCompletionSource<(ushort channelMax, uint frameMax, uint heartbeatInterval)>();
 
         ushort nextChannelNumber;
-        bool isOpen;
+
+        public bool IsOpen { get; private set; }
 
         public ushort ChannelMax { get; private set; }
 
@@ -66,7 +67,7 @@ namespace Angora
 
             (ChannelMax, FrameMax, HeartbeatInterval) = await readyToOpenConnection.Task;
 
-            isOpen = await Send_Open();
+            IsOpen = await Send_Open();
         }
 
         public async Task<Channel> CreateChannel()
@@ -86,9 +87,9 @@ namespace Angora
 
         async Task Close(bool client)
         {
-            if (isOpen)
+            if (IsOpen)
             {
-                isOpen = false;
+                IsOpen = false;
 
                 if (client)
                 {
