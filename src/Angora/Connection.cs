@@ -12,14 +12,7 @@ namespace Angora
 {
     public class Connection
     {
-        static readonly byte[] protocolHeader = { 0x41, 0x4d, 0x51, 0x50, 0x00, 0x00, 0x09, 0x01 };
-
-        static readonly Dictionary<string, object> capabilities = new Dictionary<string, object>
-        {
-            { "exchange_exchange_bindings", true }
-        };
-
-        const ushort connectionChannelNumber = 0;
+        readonly ConnectionMethods methods;
 
         readonly string hostName;
         readonly string userName;
@@ -53,6 +46,8 @@ namespace Angora
 
             socket = new Socket();
 
+            methods = new ConnectionMethods(socket);
+
             channels = new Dictionary<ushort, Channel>();
         }
 
@@ -67,7 +62,7 @@ namespace Angora
             Task.Run(() => ReadLoop()).Ignore();
 
             var startResult = await Send_ProtocolHeader();
-            await Send_StartOk(connectionName);
+            await methods.Send_StartOk(connectionName, userName, password);
 
             (ChannelMax, FrameMax, HeartbeatInterval) = await readyToOpenConnection.Task;
 
@@ -101,7 +96,7 @@ namespace Angora
                 }
                 else
                 {
-                    await Send_CloseOk();
+                    await methods.Send_CloseOk();
                 }
 
                 socket.Close();
@@ -162,26 +157,7 @@ namespace Angora
 
             while (true)
             {
-                var buffer = await socket.GetWriteBuffer();
-
-                try
-                {
-                    if (socket.HeartbeatNeeded)
-                    {
-                        uint length = 0;
-
-                        buffer.WriteBigEndian(FrameType.Heartbeat);
-                        buffer.WriteBigEndian(connectionChannelNumber);
-                        buffer.WriteBigEndian(length);
-                        buffer.WriteBigEndian(FrameEnd);
-                    }
-
-                    await buffer.FlushAsync();
-                }
-                finally
-                {
-                    socket.ReleaseWriteBuffer(true);
-                }
+                await methods.Send_Heartbeat();
 
                 await Task.Delay(TimeSpan.FromSeconds(interval));
             }
@@ -306,158 +282,30 @@ namespace Angora
 
         async Task<StartResult> Send_ProtocolHeader()
         {
-            var buffer = await socket.GetWriteBuffer();
-
-            try
-            {
-                buffer.Write(protocolHeader);
-
-                await buffer.FlushAsync();
-            }
-            finally
-            {
-                socket.ReleaseWriteBuffer();
-            }
+            await methods.Send_ProtocolHeader();
 
             return await startSent.Task;
         }
 
-        async Task Send_StartOk(string connectionName)
-        {
-            var buffer = await socket.GetWriteBuffer();
-
-            try
-            {
-                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, connectionChannelNumber);
-
-                buffer.WriteBigEndian(Method.Connection.StartOk);
-
-                var clientProperties = new Dictionary<string, object>
-                {
-                    { "product", "Angora" },
-                    { "capabilities", capabilities },
-                    { "connection_name", connectionName }
-                };
-
-                buffer.WriteTable(clientProperties);
-                buffer.WriteShortString("PLAIN"); //mechanism
-                buffer.WriteLongString($"\0{userName}\0{password}"); //response
-                buffer.WriteShortString("en_US"); //locale
-
-                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
-
-                buffer.WriteBigEndian(FrameEnd);
-
-                await buffer.FlushAsync();
-            }
-            finally
-            {
-                socket.ReleaseWriteBuffer();
-            }
-        }
-
         async Task Send_TuneOk(ushort channelMax, uint frameMax, ushort heartbeat)
         {
-            var buffer = await socket.GetWriteBuffer();
-
-            try
-            {
-                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, connectionChannelNumber);
-
-                buffer.WriteBigEndian(Method.Connection.TuneOk);
-                buffer.WriteBigEndian(channelMax);
-                buffer.WriteBigEndian(frameMax);
-                buffer.WriteBigEndian(heartbeat);
-
-                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
-
-                buffer.WriteBigEndian(FrameEnd);
-
-                await buffer.FlushAsync();
-            }
-            finally
-            {
-                socket.ReleaseWriteBuffer();
-            }
+            await methods.Send_TuneOk(channelMax, frameMax, heartbeat);
 
             readyToOpenConnection.SetResult((channelMax, frameMax, heartbeat));
         }
 
         async Task<bool> Send_Open()
         {
-            var buffer = await socket.GetWriteBuffer();
-
-            try
-            {
-                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, connectionChannelNumber);
-
-                buffer.WriteBigEndian(Method.Connection.Open);
-                buffer.WriteShortString(virtualHost);
-                buffer.WriteBigEndian(Reserved);
-                buffer.WriteBigEndian(Reserved);
-
-                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
-
-                buffer.WriteBigEndian(FrameEnd);
-
-                await buffer.FlushAsync();
-            }
-            finally
-            {
-                socket.ReleaseWriteBuffer();
-            }
+            await methods.Send_Open(virtualHost);
 
             return await openOk.Task;
         }
 
         async Task Send_Close(ushort replyCode = ConnectionReplyCode.Success, string replyText = "Goodbye", ushort failingClass = 0, ushort failingMethod = 0)
         {
-            var buffer = await socket.GetWriteBuffer();
-
-            try
-            {
-                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, connectionChannelNumber);
-
-                buffer.WriteBigEndian(Method.Connection.Close);
-                buffer.WriteBigEndian(replyCode);
-                buffer.WriteShortString(replyText);
-                buffer.WriteBigEndian(failingClass);
-                buffer.WriteBigEndian(failingMethod);
-
-                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
-
-                buffer.WriteBigEndian(FrameEnd);
-
-                await buffer.FlushAsync();
-            }
-            finally
-            {
-                socket.ReleaseWriteBuffer();
-            }
+            await methods.Send_Close(replyCode, replyText, failingClass, failingMethod);
 
             await closeOk.Task;
-        }
-
-        async Task Send_CloseOk()
-        {
-            var buffer = await socket.GetWriteBuffer();
-
-            try
-            {
-                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, connectionChannelNumber);
-
-                buffer.WriteBigEndian(Method.Connection.CloseOk);
-
-                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
-
-                buffer.WriteBigEndian(FrameEnd);
-
-                await buffer.FlushAsync();
-            }
-            finally
-            {
-                socket.ReleaseWriteBuffer();
-            }
         }
     }
 }
