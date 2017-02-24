@@ -20,7 +20,7 @@ namespace Angora
 
         public Basic Basic { get; }
 
-        readonly Socket socket;
+        readonly ChannelMethods methods;
 
         readonly SemaphoreSlim pendingReply;
         bool replyIsExpected;
@@ -33,14 +33,15 @@ namespace Angora
 
         internal Channel(Socket socket, uint maxContentBodySize, ushort channelNumber)
         {
-            this.socket = socket;
             ChannelNumber = channelNumber;
+
+            methods = new ChannelMethods(socket, channelNumber);
 
             pendingReply = new SemaphoreSlim(1, 1);
 
-            Exchange = new Exchange(channelNumber, socket, SetExpectedReplyMethod, ThrowIfClosed);
-            Queue = new Queue(channelNumber, socket, SetExpectedReplyMethod, ThrowIfClosed);
-            Basic = new Basic(channelNumber, socket, maxContentBodySize, SetExpectedReplyMethod, ThrowIfClosed);
+            Exchange = new Exchange(socket, channelNumber, SetExpectedReplyMethod, ThrowIfClosed);
+            Queue = new Queue(socket, channelNumber, SetExpectedReplyMethod, ThrowIfClosed);
+            Basic = new Basic(socket, channelNumber, maxContentBodySize, SetExpectedReplyMethod, ThrowIfClosed);
 
             handle_OpenOk = Handle_OpenOk;
             handle_CloseOk = Handle_CloseOk;
@@ -67,7 +68,7 @@ namespace Angora
 
         internal async Task HandleIncomingMethod(uint method, ReadableBuffer arguments)
         {
-            switch(method)
+            switch (method)
             {
                 case Method.Channel.Close:
                     await Handle_Close(arguments);
@@ -99,6 +100,16 @@ namespace Angora
             pendingReply.Release();
         }
 
+        internal async Task Open()
+        {
+            var openOk = new TaskCompletionSource<bool>();
+            await SetExpectedReplyMethod(Method.Channel.OpenOk, openOk, handle_OpenOk);
+
+            await methods.Send_Open();
+
+            await openOk.Task;
+        }
+
         void Handle_OpenOk(object tcs, ReadableBuffer arguments, Exception exception)
         {
             var openOk = (TaskCompletionSource<bool>)tcs;
@@ -112,6 +123,18 @@ namespace Angora
                 IsOpen = true;
                 openOk.SetResult(true);
             }
+        }
+
+        public async Task Close(ushort replyCode = ChannelReplyCode.Success, string replyText = "Goodbye", ushort failingClass = 0, ushort failingMethod = 0)
+        {
+            ThrowIfClosed();
+
+            var closeOk = new TaskCompletionSource<bool>();
+            await SetExpectedReplyMethod(Method.Channel.CloseOk, closeOk, Handle_CloseOk);
+
+            await methods.Send_Close(replyCode, replyText, failingClass, failingMethod);
+
+            await closeOk.Task;
         }
 
         void Handle_CloseOk(object tcs, ReadableBuffer arguments, Exception exception)
@@ -129,28 +152,11 @@ namespace Angora
             }
         }
 
-        public void Handle_Connection_Close(ushort replyCode, string replyText, uint method)
-        {
-            IsOpen = false;
-
-            if (replyIsExpected)
-            {
-                var classId = method >> 16;
-                var methodId = method << 16 >> 16;
-
-                var exception = new Exception($"Connection Closed: {replyCode} {replyText}. ClassId: {classId} MethodId: {methodId}");
-
-                replyHandler(replyTaskCompletionSource, default(ReadableBuffer), exception);
-
-                replyIsExpected = false;
-                pendingReply.Release();
-            }
-        }
-
         async Task Handle_Close(ReadableBuffer arguments)
         {
             IsOpen = false;
-            await Send_CloseOk();
+
+            await methods.Send_CloseOk();
 
             if (replyIsExpected)
             {
@@ -174,86 +180,21 @@ namespace Angora
             }
         }
 
-        internal async Task Open()
+        internal void Handle_Connection_Close(ushort replyCode, string replyText, uint method)
         {
-            var openOk = new TaskCompletionSource<bool>();
-            await SetExpectedReplyMethod(Method.Channel.OpenOk, openOk, handle_OpenOk);
+            IsOpen = false;
 
-            var buffer = await socket.GetWriteBuffer();
-
-            try
+            if (replyIsExpected)
             {
-                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, ChannelNumber);
+                var classId = method >> 16;
+                var methodId = method << 16 >> 16;
 
-                buffer.WriteBigEndian(Method.Channel.Open);
-                buffer.WriteBigEndian(Reserved);
+                var exception = new Exception($"Connection Closed: {replyCode} {replyText}. ClassId: {classId} MethodId: {methodId}");
 
-                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
+                replyHandler(replyTaskCompletionSource, default(ReadableBuffer), exception);
 
-                buffer.WriteBigEndian(FrameEnd);
-
-                await buffer.FlushAsync();
-            }
-            finally
-            {
-                socket.ReleaseWriteBuffer();
-            }
-
-            await openOk.Task;
-        }
-
-        public async Task Close(ushort replyCode = ChannelReplyCode.Success, string replyText = "Goodbye", ushort failingClass = 0, ushort failingMethod = 0)
-        {
-            ThrowIfClosed();
-
-            var closeOk = new TaskCompletionSource<bool>();
-            await SetExpectedReplyMethod(Method.Channel.CloseOk, closeOk, Handle_CloseOk);
-
-            var buffer = await socket.GetWriteBuffer();
-
-            try
-            {
-                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, ChannelNumber);
-
-                buffer.WriteBigEndian(Method.Channel.Close);
-                buffer.WriteBigEndian(replyCode);
-                buffer.WriteShortString(replyText);
-                buffer.WriteBigEndian(failingClass);
-                buffer.WriteBigEndian(failingMethod);
-
-                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
-
-                buffer.WriteBigEndian(FrameEnd);
-
-                await buffer.FlushAsync();
-            }
-            finally
-            {
-                socket.ReleaseWriteBuffer();
-            }
-
-            await closeOk.Task;
-        }
-
-        async Task Send_CloseOk()
-        {
-            var buffer = await socket.GetWriteBuffer();
-
-            try
-            {
-                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, ChannelNumber);
-
-                buffer.WriteBigEndian(Method.Channel.CloseOk);
-
-                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
-
-                buffer.WriteBigEndian(FrameEnd);
-
-                await buffer.FlushAsync();
-            }
-            finally
-            {
-                socket.ReleaseWriteBuffer();
+                replyIsExpected = false;
+                pendingReply.Release();
             }
         }
     }

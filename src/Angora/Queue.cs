@@ -10,8 +10,7 @@ namespace Angora
 {
     public class Queue
     {
-        readonly ushort channelNumber;
-        readonly Socket socket;
+        readonly QueueMethods methods;
         readonly Func<uint, object, Action<object, ReadableBuffer, Exception>, Task> SetExpectedReplyMethod;
         readonly Action ThrowIfClosed;
 
@@ -21,10 +20,9 @@ namespace Angora
         readonly Action<object, ReadableBuffer, Exception> handle_PurgeOk;
         readonly Action<object, ReadableBuffer, Exception> handle_DeleteOk;
 
-        internal Queue(ushort channelNumber, Socket socket, Func<uint, object, Action<object, ReadableBuffer, Exception>, Task> setExpectedReplyMethod, Action throwIfClosed)
+        internal Queue(Socket socket, ushort channelNumber, Func<uint, object, Action<object, ReadableBuffer, Exception>, Task> setExpectedReplyMethod, Action throwIfClosed)
         {
-            this.channelNumber = channelNumber;
-            this.socket = socket;
+            methods = new QueueMethods(socket, channelNumber);
             SetExpectedReplyMethod = setExpectedReplyMethod;
             ThrowIfClosed = throwIfClosed;
 
@@ -40,6 +38,18 @@ namespace Angora
             public string QueueName;
             public uint MessageCount;
             public uint ConsumerCount;
+        }
+
+        public async Task<DeclareResult> Declare(string queueName, bool passive, bool durable, bool exclusive, bool autoDelete, Dictionary<string, object> arguments)
+        {
+            ThrowIfClosed();
+
+            var declareOk = new TaskCompletionSource<DeclareResult>();
+            await SetExpectedReplyMethod(Method.Queue.DeclareOk, declareOk, handle_DeclareOk);
+
+            await methods.Send_Declare(queueName, passive, durable, exclusive, autoDelete, arguments);
+
+            return await declareOk.Task;
         }
 
         void Handle_DeclareOk(object tcs, ReadableBuffer arguments, Exception exception)
@@ -67,6 +77,18 @@ namespace Angora
             }
         }
 
+        public async Task Bind(string queue, string exchange, string routingKey, Dictionary<string, object> arguments)
+        {
+            ThrowIfClosed();
+
+            var bindOk = new TaskCompletionSource<bool>();
+            await SetExpectedReplyMethod(Method.Queue.BindOk, bindOk, handle_BindOk);
+
+            await methods.Send_Bind(queue, exchange, routingKey, arguments);
+
+            await bindOk.Task;
+        }
+
         void Handle_BindOk(object tcs, ReadableBuffer arguments, Exception exception)
         {
             var bindOk = (TaskCompletionSource<bool>)tcs;
@@ -81,6 +103,18 @@ namespace Angora
             }
         }
 
+        public async Task Unbind(string queue, string exchange, string routingKey, Dictionary<string, object> arguments)
+        {
+            ThrowIfClosed();
+
+            var unbindOk = new TaskCompletionSource<bool>();
+            await SetExpectedReplyMethod(Method.Queue.UnbindOk, unbindOk, handle_UnbindOk);
+
+            await methods.Send_Unbind(queue, exchange, routingKey, arguments);
+
+            await unbindOk.Task;
+        }
+
         void Handle_UnbindOk(object tcs, ReadableBuffer arguments, Exception exception)
         {
             var unbindOk = (TaskCompletionSource<bool>)tcs;
@@ -93,6 +127,18 @@ namespace Angora
             {
                 unbindOk.SetResult(true);
             }
+        }
+
+        public async Task<uint> Purge(string queue)
+        {
+            ThrowIfClosed();
+
+            var purgeOk = new TaskCompletionSource<uint>();
+            await SetExpectedReplyMethod(Method.Queue.PurgeOk, purgeOk, handle_PurgeOk);
+
+            await methods.Send_Purge(queue);
+
+            return await purgeOk.Task;
         }
 
         void Handle_PurgeOk(object tcs, ReadableBuffer arguments, Exception exception)
@@ -110,6 +156,18 @@ namespace Angora
             }
         }
 
+        public async Task<uint> Delete(string queue, bool onlyIfUnused, bool onlyIfEmpty)
+        {
+            ThrowIfClosed();
+
+            var deleteOk = new TaskCompletionSource<uint>();
+            await SetExpectedReplyMethod(Method.Queue.DeleteOk, deleteOk, handle_DeleteOk);
+
+            await methods.Send_Delete(queue, onlyIfUnused, onlyIfEmpty);
+
+            return await deleteOk.Task;
+        }
+
         void Handle_DeleteOk(object tcs, ReadableBuffer arguments, Exception exception)
         {
             var deleteOk = (TaskCompletionSource<uint>)tcs;
@@ -123,177 +181,6 @@ namespace Angora
                 var messageCount = arguments.ReadBigEndian<uint>();
                 deleteOk.SetResult(messageCount);
             }
-        }
-
-        public async Task<DeclareResult> Declare(string queueName, bool passive, bool durable, bool exclusive, bool autoDelete, Dictionary<string, object> arguments)
-        {
-            ThrowIfClosed();
-
-            var declareOk = new TaskCompletionSource<DeclareResult>();
-            await SetExpectedReplyMethod(Method.Queue.DeclareOk, declareOk, handle_DeclareOk);
-
-            var buffer = await socket.GetWriteBuffer();
-
-            try
-            {
-                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, channelNumber);
-
-                buffer.WriteBigEndian(Method.Queue.Declare);
-                buffer.WriteBigEndian(Reserved);
-                buffer.WriteBigEndian(Reserved);
-                buffer.WriteShortString(queueName);
-                buffer.WriteBits(passive, durable, exclusive, autoDelete);
-                buffer.WriteTable(arguments);
-
-                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
-
-                buffer.WriteBigEndian(FrameEnd);
-
-                await buffer.FlushAsync();
-            }
-            finally
-            {
-                socket.ReleaseWriteBuffer();
-            }
-
-            return await declareOk.Task;
-        }
-
-        public async Task Bind(string queue, string exchange, string routingKey, Dictionary<string, object> arguments)
-        {
-            ThrowIfClosed();
-
-            var bindOk = new TaskCompletionSource<bool>();
-            await SetExpectedReplyMethod(Method.Queue.BindOk, bindOk, handle_BindOk);
-
-            var buffer = await socket.GetWriteBuffer();
-
-            try
-            {
-                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, channelNumber);
-
-                buffer.WriteBigEndian(Method.Queue.Bind);
-                buffer.WriteBigEndian(Reserved);
-                buffer.WriteBigEndian(Reserved);
-                buffer.WriteShortString(queue);
-                buffer.WriteShortString(exchange);
-                buffer.WriteShortString(routingKey);
-                buffer.WriteBits();
-                buffer.WriteTable(arguments);
-
-                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
-
-                buffer.WriteBigEndian(FrameEnd);
-
-                await buffer.FlushAsync();
-            }
-            finally
-            {
-                socket.ReleaseWriteBuffer();
-            }
-
-            await bindOk.Task;
-        }
-
-        public async Task Unbind(string queue, string exchange, string routingKey, Dictionary<string, object> arguments)
-        {
-            ThrowIfClosed();
-
-            var unbindOk = new TaskCompletionSource<bool>();
-            await SetExpectedReplyMethod(Method.Queue.UnbindOk, unbindOk, handle_UnbindOk);
-
-            var buffer = await socket.GetWriteBuffer();
-
-            try
-            {
-                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, channelNumber);
-
-                buffer.WriteBigEndian(Method.Queue.Unbind);
-                buffer.WriteBigEndian(Reserved);
-                buffer.WriteBigEndian(Reserved);
-                buffer.WriteShortString(queue);
-                buffer.WriteShortString(exchange);
-                buffer.WriteShortString(routingKey);
-                buffer.WriteTable(arguments);
-
-                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
-
-                buffer.WriteBigEndian(FrameEnd);
-
-                await buffer.FlushAsync();
-            }
-            finally
-            {
-                socket.ReleaseWriteBuffer();
-            }
-
-            await unbindOk.Task;
-        }
-
-        public async Task<uint> Purge(string queue)
-        {
-            ThrowIfClosed();
-
-            var purgeOk = new TaskCompletionSource<uint>();
-            await SetExpectedReplyMethod(Method.Queue.PurgeOk, purgeOk, handle_PurgeOk);
-
-            var buffer = await socket.GetWriteBuffer();
-
-            try
-            {
-                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, channelNumber);
-
-                buffer.WriteBigEndian(Method.Queue.Purge);
-                buffer.WriteBigEndian(Reserved);
-                buffer.WriteBigEndian(Reserved);
-                buffer.WriteShortString(queue);
-                buffer.WriteBits();
-
-                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
-
-                buffer.WriteBigEndian(FrameEnd);
-
-                await buffer.FlushAsync();
-            }
-            finally
-            {
-                socket.ReleaseWriteBuffer();
-            }
-
-            return await purgeOk.Task;
-        }
-
-        public async Task<uint> Delete(string queue, bool onlyIfUnused, bool onlyIfEmpty)
-        {
-            ThrowIfClosed();
-
-            var deleteOk = new TaskCompletionSource<uint>();
-            await SetExpectedReplyMethod(Method.Queue.DeleteOk, deleteOk, handle_DeleteOk);
-
-            var buffer = await socket.GetWriteBuffer();
-
-            try
-            {
-                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, channelNumber);
-
-                buffer.WriteBigEndian(Method.Queue.Delete);
-                buffer.WriteBigEndian(Reserved);
-                buffer.WriteBigEndian(Reserved);
-                buffer.WriteShortString(queue);
-                buffer.WriteBits(onlyIfEmpty, onlyIfUnused);
-
-                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
-
-                buffer.WriteBigEndian(FrameEnd);
-
-                await buffer.FlushAsync();
-            }
-            finally
-            {
-                socket.ReleaseWriteBuffer();
-            }
-
-            return await deleteOk.Task;
         }
     }
 }
