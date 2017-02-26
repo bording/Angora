@@ -227,15 +227,13 @@ namespace Angora
             var versionMinor = arguments.ReadBigEndian<byte>();
             arguments = arguments.Slice(sizeof(byte));
 
-            var (serverProperties, cursor) = arguments.ReadTable();
-            arguments = arguments.Slice(cursor);
+            var serverProperties = arguments.ReadTable();
+            arguments = arguments.Slice(serverProperties.position);
 
-            string mechanisms;
-            (mechanisms, cursor) = arguments.ReadLongString();
-            arguments = arguments.Slice(cursor);
+            var mechanism  = arguments.ReadLongString();
+            arguments = arguments.Slice(mechanism.position);
 
-            string locales;
-            (locales, cursor) = arguments.ReadLongString();
+            var locales = arguments.ReadLongString();
 
             await methods.Send_StartOk(connectionName, userName, password);
         }
