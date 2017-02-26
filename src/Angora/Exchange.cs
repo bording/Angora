@@ -34,7 +34,7 @@ namespace Angora
         {
             ThrowIfClosed();
 
-            var declareOk = new TaskCompletionSource<bool>();
+            var declareOk = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             await SetExpectedReplyMethod(Method.Exchange.DeclareOk, declareOk, handle_DeclareOk);
 
             await methods.Send_Declare(exchangeName, type, passive, durable, autoDelete, @internal, arguments);
@@ -60,7 +60,7 @@ namespace Angora
         {
             ThrowIfClosed();
 
-            var deleteOk = new TaskCompletionSource<bool>();
+            var deleteOk = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             await SetExpectedReplyMethod(Method.Exchange.DeleteOk, deleteOk, handle_DeleteOk);
 
             await methods.Send_Delete(exchange, onlyIfUnused);
@@ -86,7 +86,7 @@ namespace Angora
         {
             ThrowIfClosed();
 
-            var bindOk = new TaskCompletionSource<bool>();
+            var bindOk = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             await SetExpectedReplyMethod(Method.Exchange.BindOk, bindOk, handle_BindOk);
 
             await methods.Send_Bind(source, destination, routingKey, arguments);
@@ -112,7 +112,7 @@ namespace Angora
         {
             ThrowIfClosed();
 
-            var unbindOk = new TaskCompletionSource<bool>();
+            var unbindOk = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             await SetExpectedReplyMethod(Method.Exchange.UnbindOk, unbindOk, handle_UnbindOk);
 
             await methods.Send_Unbind(source, destination, routingKey, arguments);

@@ -34,7 +34,7 @@ namespace Angora
         {
             ThrowIfClosed();
 
-            var qosOk = new TaskCompletionSource<bool>();
+            var qosOk = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             await SetExpectedReplyMethod(Method.Basic.QosOk, qosOk, handle_QosOk);
 
             await methods.Send_Qos(prefetchSize, prefetchCount, global);
@@ -60,7 +60,7 @@ namespace Angora
         {
             ThrowIfClosed();
 
-            var consumeOk = new TaskCompletionSource<string>();
+            var consumeOk = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
             await SetExpectedReplyMethod(Method.Basic.ConsumeOk, consumeOk, handle_ConsumeOk);
 
             await methods.Send_Consume(queue, consumerTag, autoAck, exclusive, arguments);
@@ -87,7 +87,7 @@ namespace Angora
         {
             ThrowIfClosed();
 
-            var cancelOk = new TaskCompletionSource<string>();
+            var cancelOk = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
             await SetExpectedReplyMethod(Method.Basic.CancelOk, cancelOk, handle_CancelOk);
 
             await methods.Send_Cancel(consumerTag);
@@ -114,7 +114,7 @@ namespace Angora
         {
             ThrowIfClosed();
 
-            var recoverOk = new TaskCompletionSource<bool>();
+            var recoverOk = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             await SetExpectedReplyMethod(Method.Basic.RecoverOk, recoverOk, handle_RecoverOk);
 
             await methods.Send_Recover();

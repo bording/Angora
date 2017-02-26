@@ -56,9 +56,9 @@ namespace Angora
 
             channels = new Dictionary<ushort, Channel>();
 
-            openOk = new TaskCompletionSource<bool>();
-            closeOk = new TaskCompletionSource<bool>();
-            readyToOpen = new TaskCompletionSource<(ushort channelMax, uint frameMax, uint heartbeatInterval)>();
+            openOk = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            closeOk = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            readyToOpen = new TaskCompletionSource<(ushort channelMax, uint frameMax, uint heartbeatInterval)>(TaskCreationOptions.RunContinuationsAsynchronously);
 
             sendHeartbeats = new CancellationTokenSource();
             readLoop = new CancellationTokenSource();

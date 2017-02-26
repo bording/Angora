@@ -44,7 +44,7 @@ namespace Angora
         {
             ThrowIfClosed();
 
-            var declareOk = new TaskCompletionSource<DeclareResult>();
+            var declareOk = new TaskCompletionSource<DeclareResult>(TaskCreationOptions.RunContinuationsAsynchronously);
             await SetExpectedReplyMethod(Method.Queue.DeclareOk, declareOk, handle_DeclareOk);
 
             await methods.Send_Declare(queueName, passive, durable, exclusive, autoDelete, arguments);
@@ -81,7 +81,7 @@ namespace Angora
         {
             ThrowIfClosed();
 
-            var bindOk = new TaskCompletionSource<bool>();
+            var bindOk = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             await SetExpectedReplyMethod(Method.Queue.BindOk, bindOk, handle_BindOk);
 
             await methods.Send_Bind(queue, exchange, routingKey, arguments);
@@ -107,7 +107,7 @@ namespace Angora
         {
             ThrowIfClosed();
 
-            var unbindOk = new TaskCompletionSource<bool>();
+            var unbindOk = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             await SetExpectedReplyMethod(Method.Queue.UnbindOk, unbindOk, handle_UnbindOk);
 
             await methods.Send_Unbind(queue, exchange, routingKey, arguments);
@@ -133,7 +133,7 @@ namespace Angora
         {
             ThrowIfClosed();
 
-            var purgeOk = new TaskCompletionSource<uint>();
+            var purgeOk = new TaskCompletionSource<uint>(TaskCreationOptions.RunContinuationsAsynchronously);
             await SetExpectedReplyMethod(Method.Queue.PurgeOk, purgeOk, handle_PurgeOk);
 
             await methods.Send_Purge(queue);
@@ -160,7 +160,7 @@ namespace Angora
         {
             ThrowIfClosed();
 
-            var deleteOk = new TaskCompletionSource<uint>();
+            var deleteOk = new TaskCompletionSource<uint>(TaskCreationOptions.RunContinuationsAsynchronously);
             await SetExpectedReplyMethod(Method.Queue.DeleteOk, deleteOk, handle_DeleteOk);
 
             await methods.Send_Delete(queue, onlyIfUnused, onlyIfEmpty);

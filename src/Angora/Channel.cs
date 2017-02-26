@@ -105,7 +105,7 @@ namespace Angora
 
         internal async Task Open()
         {
-            var openOk = new TaskCompletionSource<bool>();
+            var openOk = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             await SetExpectedReplyMethod(Method.Channel.OpenOk, openOk, handle_OpenOk);
 
             await methods.Send_Open();
@@ -132,7 +132,7 @@ namespace Angora
         {
             ThrowIfClosed();
 
-            var closeOk = new TaskCompletionSource<bool>();
+            var closeOk = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             await SetExpectedReplyMethod(Method.Channel.CloseOk, closeOk, Handle_CloseOk);
 
             await methods.Send_Close(replyCode, replyText, failingClass, failingMethod);
