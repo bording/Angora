@@ -147,7 +147,7 @@ namespace Angora
             }
         }
 
-        public async Task Send_Close(ushort replyCode, string replyText, ushort failingClass, ushort failingMethod)
+        public async Task Send_Close(ushort replyCode = ConnectionReplyCode.Success, string replyText = "Goodbye", ushort failingClass = 0, ushort failingMethod = 0)
         {
             var buffer = await socket.GetWriteBuffer();
 

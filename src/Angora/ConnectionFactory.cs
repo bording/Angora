@@ -14,8 +14,8 @@ namespace Angora
 
         public async Task<Connection> CreateConnection(string connectionName = null)
         {
-            var connection = new Connection(HostName, UserName, Password, VirtualHost);
-            await connection.Connect(connectionName);
+            var connection = new Connection(HostName, UserName, Password, VirtualHost, connectionName);
+            await connection.Connect();
 
             return connection;
         }

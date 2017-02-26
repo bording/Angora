@@ -19,20 +19,20 @@ namespace Angora
         readonly string userName;
         readonly string password;
         readonly string virtualHost;
+        readonly string connectionName;
 
         readonly Socket socket;
 
         readonly Dictionary<ushort, Channel> channels;
 
-        readonly TaskCompletionSource<StartResult> startSent = new TaskCompletionSource<StartResult>();
-        readonly TaskCompletionSource<bool> openOk = new TaskCompletionSource<bool>();
-        readonly TaskCompletionSource<bool> closeOk = new TaskCompletionSource<bool>();
-        readonly TaskCompletionSource<(ushort channelMax, uint frameMax, uint heartbeatInterval)> readyToOpenConnection = new TaskCompletionSource<(ushort channelMax, uint frameMax, uint heartbeatInterval)>();
-
-        ushort nextChannelNumber;
+        readonly TaskCompletionSource<bool> openOk;
+        readonly TaskCompletionSource<bool> closeOk;
+        readonly TaskCompletionSource<(ushort channelMax, uint frameMax, uint heartbeatInterval)> readyToOpen;
 
         readonly CancellationTokenSource sendHeartbeats;
         readonly CancellationTokenSource readLoop;
+
+        ushort nextChannelNumber;
 
         public bool IsOpen { get; private set; }
 
@@ -42,12 +42,13 @@ namespace Angora
 
         public uint HeartbeatInterval { get; private set; }
 
-        internal Connection(string hostName, string userName, string password, string virtualHost)
+        internal Connection(string hostName, string userName, string password, string virtualHost, string connectionName)
         {
             this.hostName = hostName;
             this.userName = userName;
             this.password = password;
             this.virtualHost = virtualHost;
+            this.connectionName = connectionName;
 
             socket = new Socket();
 
@@ -55,11 +56,15 @@ namespace Angora
 
             channels = new Dictionary<ushort, Channel>();
 
+            openOk = new TaskCompletionSource<bool>();
+            closeOk = new TaskCompletionSource<bool>();
+            readyToOpen = new TaskCompletionSource<(ushort channelMax, uint frameMax, uint heartbeatInterval)>();
+
             sendHeartbeats = new CancellationTokenSource();
             readLoop = new CancellationTokenSource();
         }
 
-        internal async Task Connect(string connectionName = null)
+        internal async Task Connect()
         {
             var addresses = await Dns.GetHostAddressesAsync(hostName);
             var address = addresses.First();
@@ -69,12 +74,11 @@ namespace Angora
 
             Task.Run(() => ReadLoop(readLoop.Token)).Ignore();
 
-            var startResult = await Send_ProtocolHeader();
-            await methods.Send_StartOk(connectionName, userName, password);
+            await methods.Send_ProtocolHeader();
+            (ChannelMax, FrameMax, HeartbeatInterval) = await readyToOpen.Task;
 
-            (ChannelMax, FrameMax, HeartbeatInterval) = await readyToOpenConnection.Task;
-
-            IsOpen = await Send_Open();
+            await methods.Send_Open(virtualHost);
+            IsOpen = await openOk.Task;
         }
 
         public async Task<Channel> CreateChannel()
@@ -92,29 +96,28 @@ namespace Angora
             return Close(true);
         }
 
-        async Task Close(bool client)
+        async Task Close(bool clientInitiated)
         {
-            if (IsOpen)
-            {
-                IsOpen = false;
-                sendHeartbeats.Cancel();
-
-                if (client)
-                {
-                    await Send_Close();
-                }
-                else
-                {
-                    await methods.Send_CloseOk();
-                }
-
-                readLoop.Cancel();
-                socket.Close();
-            }
-            else
+            if (!IsOpen)
             {
                 throw new Exception("already closed");
             }
+
+            IsOpen = false;
+            sendHeartbeats.Cancel();
+
+            if (clientInitiated)
+            {
+                await methods.Send_Close();
+                await closeOk.Task;
+            }
+            else
+            {
+                await methods.Send_CloseOk();
+            }
+
+            readLoop.Cancel();
+            socket.Close();
         }
 
         async Task ReadLoop(CancellationToken token)
@@ -195,56 +198,46 @@ namespace Angora
             switch (method)
             {
                 case Method.Connection.Start:
-                    Handle_Start(arguments);
+                    await Handle_Start(arguments);
                     break;
 
                 case Method.Connection.Tune:
                     await Handle_Tune(arguments);
                     break;
 
+                case Method.Connection.Close:
+                    await Handle_Close(arguments);
+                    break;
+
                 case Method.Connection.OpenOk:
-                    Handle_OpenOk();
+                    openOk.SetResult(true);
                     break;
 
                 case Method.Connection.CloseOk:
-                    Handle_CloseOk();
-                    break;
-
-                case Method.Connection.Close:
-                    await Handle_Close(arguments);
+                    closeOk.SetResult(true);
                     break;
             }
         }
 
-        struct StartResult
+        async Task Handle_Start(ReadableBuffer arguments)
         {
-            public byte VersionMajor;
-            public byte VersionMinor;
-            public Dictionary<string, object> ServerProperties;
-            public string Mechanisms;
-            public string Locales;
-        }
-
-        void Handle_Start(ReadableBuffer arguments)
-        {
-            StartResult result;
-            ReadCursor cursor;
-
-            result.VersionMajor = arguments.ReadBigEndian<byte>();
+            var versionMajor = arguments.ReadBigEndian<byte>();
             arguments = arguments.Slice(sizeof(byte));
 
-            result.VersionMinor = arguments.ReadBigEndian<byte>();
+            var versionMinor = arguments.ReadBigEndian<byte>();
             arguments = arguments.Slice(sizeof(byte));
 
-            (result.ServerProperties, cursor) = arguments.ReadTable();
+            var (serverProperties, cursor) = arguments.ReadTable();
             arguments = arguments.Slice(cursor);
 
-            (result.Mechanisms, cursor) = arguments.ReadLongString();
+            string mechanisms;
+            (mechanisms, cursor) = arguments.ReadLongString();
             arguments = arguments.Slice(cursor);
 
-            (result.Locales, cursor) = arguments.ReadLongString();
+            string locales;
+            (locales, cursor) = arguments.ReadLongString();
 
-            startSent.SetResult(result);
+            await methods.Send_StartOk(connectionName, userName, password);
         }
 
         async Task Handle_Tune(ReadableBuffer arguments)
@@ -259,17 +252,9 @@ namespace Angora
 
             Task.Run(() => SendHeartbeats(heartbeat, sendHeartbeats.Token)).Ignore();
 
-            await Send_TuneOk(channelMax, frameMax, heartbeat);
-        }
+            await methods.Send_TuneOk(channelMax, frameMax, heartbeat);
 
-        void Handle_OpenOk()
-        {
-            openOk.SetResult(true);
-        }
-
-        void Handle_CloseOk()
-        {
-            closeOk.SetResult(true);
+            readyToOpen.SetResult((channelMax, frameMax, heartbeat));
         }
 
         async Task Handle_Close(ReadableBuffer arguments)
@@ -288,34 +273,6 @@ namespace Angora
             {
                 channel.Value.Handle_Connection_Close(replyCode, replyText, method);
             }
-        }
-
-        async Task<StartResult> Send_ProtocolHeader()
-        {
-            await methods.Send_ProtocolHeader();
-
-            return await startSent.Task;
-        }
-
-        async Task Send_TuneOk(ushort channelMax, uint frameMax, ushort heartbeat)
-        {
-            await methods.Send_TuneOk(channelMax, frameMax, heartbeat);
-
-            readyToOpenConnection.SetResult((channelMax, frameMax, heartbeat));
-        }
-
-        async Task<bool> Send_Open()
-        {
-            await methods.Send_Open(virtualHost);
-
-            return await openOk.Task;
-        }
-
-        async Task Send_Close(ushort replyCode = ConnectionReplyCode.Success, string replyText = "Goodbye", ushort failingClass = 0, ushort failingMethod = 0)
-        {
-            await methods.Send_Close(replyCode, replyText, failingClass, failingMethod);
-
-            await closeOk.Task;
         }
     }
 }
