@@ -73,6 +73,9 @@ namespace Angora
                 case Method.Channel.Close:
                     await Handle_Close(arguments);
                     break;
+                case Method.Basic.Deliver:
+                    await Basic.Handle_Deliver(arguments);
+                    break;
                 default:
                     HandleReplyMethod(method, arguments);
                     break;

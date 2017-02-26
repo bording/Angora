@@ -142,5 +142,25 @@ namespace Angora
 
             await methods.Send_Publish(exchange, routingKey, mandatory, properties, body);
         }
+
+        public Task Handle_Deliver(ReadableBuffer arguments)
+        {
+            var consumerTag = arguments.ReadShortString();
+            arguments = arguments.Slice(consumerTag.position);
+
+            var deliveryTag = arguments.ReadBigEndian<ulong>();
+            arguments = arguments.Slice(sizeof(ulong));
+
+            var redelivered = Convert.ToBoolean(arguments.ReadBigEndian<byte>());
+            arguments.Slice(sizeof(byte));
+
+            var exchange = arguments.ReadShortString();
+            arguments = arguments.Slice(exchange.position);
+
+            var routingKey = arguments.ReadShortString();
+            arguments = arguments.Slice(routingKey.position);
+
+            return Task.CompletedTask;
+        }
     }
 }

@@ -132,32 +132,39 @@ namespace Angora
                     break;
                 }
 
-                var frameType = buffer.ReadBigEndian<byte>();
-                buffer = buffer.Slice(sizeof(byte));
-
-                var channelNumber = buffer.ReadBigEndian<ushort>();
-                buffer = buffer.Slice(sizeof(ushort));
-
-                var payloadSize = buffer.ReadBigEndian<uint>();
-                buffer = buffer.Slice(sizeof(uint));
-
-                var payload = buffer.Slice(buffer.Start, (int)payloadSize);
-                buffer = buffer.Slice((int)payloadSize);
-
-                var frameEnd = buffer.ReadBigEndian<byte>();
-                buffer = buffer.Slice(sizeof(byte));
-
-                if (frameEnd != FrameEnd)
+                while (!buffer.IsEmpty)
                 {
-                    //TODO other stuff here around what this means
-                    throw new Exception();
-                }
+                    var frameType = buffer.ReadBigEndian<byte>();
+                    buffer = buffer.Slice(sizeof(byte));
 
-                switch (frameType)
-                {
-                    case FrameType.Method:
-                        await HandleIncomingMethodFrame(channelNumber, payload);
-                        break;
+                    var channelNumber = buffer.ReadBigEndian<ushort>();
+                    buffer = buffer.Slice(sizeof(ushort));
+
+                    var payloadSize = buffer.ReadBigEndian<uint>();
+                    buffer = buffer.Slice(sizeof(uint));
+
+                    var payload = buffer.Slice(buffer.Start, (int)payloadSize);
+                    buffer = buffer.Slice((int)payloadSize);
+
+                    var frameEnd = buffer.ReadBigEndian<byte>();
+                    buffer = buffer.Slice(sizeof(byte));
+
+                    if (frameEnd != FrameEnd)
+                    {
+                        //TODO other stuff here around what this means
+                        throw new Exception();
+                    }
+
+                    switch (frameType)
+                    {
+                        case FrameType.Method:
+                            await HandleIncomingMethodFrame(channelNumber, payload);
+                            break;
+                        case FrameType.ContentHeader:
+                        case FrameType.ContentBody:
+                            await HandleIncomingContent(frameType, channelNumber, payload);
+                            break;
+                    }
                 }
 
                 socket.Input.Advance(buffer.Start, buffer.End);
@@ -191,6 +198,11 @@ namespace Angora
             {
                 await channels[channelNumber].HandleIncomingMethod(method, payload);
             }
+        }
+
+        Task HandleIncomingContent(byte frameType, ushort channelNumber, ReadableBuffer payload)
+        {
+            return Task.CompletedTask;
         }
 
         async Task HandleIncomingMethod(uint method, ReadableBuffer arguments)
