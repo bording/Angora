@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO.Pipelines;
 using System.Linq;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 
 using static Angora.AmqpConstants;
@@ -30,6 +31,9 @@ namespace Angora
 
         ushort nextChannelNumber;
 
+        readonly CancellationTokenSource sendHeartbeats;
+        readonly CancellationTokenSource readLoop;
+
         public bool IsOpen { get; private set; }
 
         public ushort ChannelMax { get; private set; }
@@ -50,6 +54,9 @@ namespace Angora
             methods = new ConnectionMethods(socket);
 
             channels = new Dictionary<ushort, Channel>();
+
+            sendHeartbeats = new CancellationTokenSource();
+            readLoop = new CancellationTokenSource();
         }
 
         internal async Task Connect(string connectionName = null)
@@ -60,7 +67,7 @@ namespace Angora
 
             await socket.Connect(endpoint);
 
-            Task.Run(() => ReadLoop()).Ignore();
+            Task.Run(() => ReadLoop(readLoop.Token)).Ignore();
 
             var startResult = await Send_ProtocolHeader();
             await methods.Send_StartOk(connectionName, userName, password);
@@ -90,6 +97,7 @@ namespace Angora
             if (IsOpen)
             {
                 IsOpen = false;
+                sendHeartbeats.Cancel();
 
                 if (client)
                 {
@@ -100,6 +108,7 @@ namespace Angora
                     await methods.Send_CloseOk();
                 }
 
+                readLoop.Cancel();
                 socket.Close();
             }
             else
@@ -108,9 +117,9 @@ namespace Angora
             }
         }
 
-        async Task ReadLoop()
+        async Task ReadLoop(CancellationToken token)
         {
-            while (true)
+            while (!token.IsCancellationRequested)
             {
                 var readResult = await socket.Input.ReadAsync();
                 var buffer = readResult.Buffer;
@@ -152,11 +161,11 @@ namespace Angora
             }
         }
 
-        async Task SendHeartbeats(ushort interval)
+        async Task SendHeartbeats(ushort interval, CancellationToken token)
         {
             await Task.Delay(200);
 
-            while (true)
+            while (!token.IsCancellationRequested)
             {
                 await methods.Send_Heartbeat();
 
@@ -248,7 +257,7 @@ namespace Angora
 
             var heartbeat = arguments.ReadBigEndian<ushort>();
 
-            Task.Run(() => SendHeartbeats(heartbeat)).Ignore();
+            Task.Run(() => SendHeartbeats(heartbeat, sendHeartbeats.Token)).Ignore();
 
             await Send_TuneOk(channelMax, frameMax, heartbeat);
         }
