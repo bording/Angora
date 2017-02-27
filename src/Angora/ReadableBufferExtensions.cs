@@ -136,5 +136,95 @@ namespace Angora
 
             return (UnixEpoch.AddSeconds(time), buffer.Start);
         }
+
+        public static MessageProperties ReadBasicProperties(this ReadableBuffer buffer)
+        {
+            var properties = new MessageProperties();
+
+            var flags = buffer.ReadBigEndian<ushort>();
+            buffer = buffer.Slice(sizeof(ushort));
+
+            ReadCursor cursor;
+
+            if ((flags & 1 << 15) != 0)
+            {
+                (properties.ContentType, cursor) = buffer.ReadShortString();
+                buffer = buffer.Slice(cursor);
+            }
+
+            if ((flags & 1 << 14) != 0)
+            {
+                (properties.ContentEncoding, cursor) = buffer.ReadShortString();
+                buffer = buffer.Slice(cursor);
+            }
+
+            if ((flags & 1 << 13) != 0)
+            {
+                (properties.Headers, cursor) = buffer.ReadTable();
+                buffer = buffer.Slice(cursor);
+            }
+
+            if ((flags & 1 << 12) != 0)
+            {
+                properties.DeliveryMode = buffer.ReadBigEndian<byte>();
+                buffer = buffer.Slice(sizeof(byte));
+            }
+
+            if ((flags & 1 << 11) != 0)
+            {
+                properties.Priority = buffer.ReadBigEndian<byte>();
+                buffer = buffer.Slice(sizeof(byte));
+            }
+
+            if ((flags & 1 << 10) != 0)
+            {
+                (properties.CorrelationId, cursor) = buffer.ReadShortString();
+                buffer = buffer.Slice(cursor);
+            }
+
+            if ((flags & 1 << 9) != 0)
+            {
+                (properties.ReplyTo, cursor) = buffer.ReadShortString();
+                buffer = buffer.Slice(cursor);
+            }
+
+            if ((flags & 1 << 8) != 0)
+            {
+                (properties.Expiration, cursor) = buffer.ReadShortString();
+                buffer = buffer.Slice(cursor);
+            }
+
+            if ((flags & 1 << 7) != 0)
+            {
+                (properties.MessageId, cursor) = buffer.ReadShortString();
+                buffer = buffer.Slice(cursor);
+            }
+
+            if ((flags & 1 << 6) != 0)
+            {
+                (properties.Timestamp, cursor) = buffer.ReadTimestamp();
+                buffer = buffer.Slice(cursor);
+            }
+
+            if ((flags & 1 << 5) != 0)
+            {
+                (properties.Type, cursor) = buffer.ReadShortString();
+                buffer = buffer.Slice(cursor);
+            }
+
+            if ((flags & 1 << 4) != 0)
+            {
+                (properties.UserId, cursor) = buffer.ReadShortString();
+                buffer = buffer.Slice(cursor);
+            }
+
+            if ((flags & 1 << 3) != 0)
+            {
+                (properties.AppId, cursor) = buffer.ReadShortString();
+                buffer = buffer.Slice(cursor);
+            }
+
+            return properties;
+        }
     }
 }
