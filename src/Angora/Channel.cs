@@ -103,6 +103,21 @@ namespace Angora
             pendingReply.Release();
         }
 
+        internal Task HandleIncomingContent(byte frameType, ReadableBuffer payload)
+        {
+            if(frameType == FrameType.ContentHeader)
+            {
+                return Basic.Handle_ContentHeader(payload);
+            }
+
+            if (frameType == FrameType.ContentBody)
+            {
+                return Basic.Handle_ContentBody(payload);
+            }
+
+            return Task.CompletedTask;
+        }
+
         internal async Task Open()
         {
             var openOk = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);

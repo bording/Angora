@@ -143,7 +143,7 @@ namespace Angora
             await methods.Send_Publish(exchange, routingKey, mandatory, properties, body);
         }
 
-        public Task Handle_Deliver(ReadableBuffer arguments)
+        internal Task Handle_Deliver(ReadableBuffer arguments)
         {
             var consumerTag = arguments.ReadShortString();
             arguments = arguments.Slice(consumerTag.position);
@@ -159,6 +159,29 @@ namespace Angora
 
             var routingKey = arguments.ReadShortString();
             arguments = arguments.Slice(routingKey.position);
+
+            return Task.CompletedTask;
+        }
+
+        internal Task Handle_ContentHeader(ReadableBuffer payload)
+        {
+            var classId = payload.ReadBigEndian<ushort>();
+            payload = payload.Slice(sizeof(ushort));
+
+            var weight = payload.ReadBigEndian<ushort>();
+            payload = payload.Slice(sizeof(ushort));
+
+            var bodySize = payload.ReadBigEndian<ulong>();
+            payload = payload.Slice(sizeof(ulong));
+
+            var properties = payload.ReadBasicProperties();
+
+            return Task.CompletedTask;
+        }
+
+        internal Task Handle_ContentBody(ReadableBuffer payload)
+        {
+            var bytes = payload.ToArray();
 
             return Task.CompletedTask;
         }

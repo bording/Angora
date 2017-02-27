@@ -162,7 +162,7 @@ namespace Angora
                             break;
                         case FrameType.ContentHeader:
                         case FrameType.ContentBody:
-                            await HandleIncomingContent(frameType, channelNumber, payload);
+                            await HandleIncomingContent(channelNumber, frameType, payload);
                             break;
                     }
                 }
@@ -200,9 +200,9 @@ namespace Angora
             }
         }
 
-        Task HandleIncomingContent(byte frameType, ushort channelNumber, ReadableBuffer payload)
+        Task HandleIncomingContent(ushort channelNumber, byte frameType, ReadableBuffer payload)
         {
-            return Task.CompletedTask;
+            return channels[channelNumber].HandleIncomingContent(frameType, payload);
         }
 
         async Task HandleIncomingMethod(uint method, ReadableBuffer arguments)
@@ -242,7 +242,7 @@ namespace Angora
             var serverProperties = arguments.ReadTable();
             arguments = arguments.Slice(serverProperties.position);
 
-            var mechanism  = arguments.ReadLongString();
+            var mechanism = arguments.ReadLongString();
             arguments = arguments.Slice(mechanism.position);
 
             var locales = arguments.ReadLongString();
