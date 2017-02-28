@@ -43,7 +43,7 @@ namespace Sample
 
             await channel.Basic.Qos(0, 1, false);
 
-            var consumerTag = await channel.Basic.Consume("test", "myConsumer", true, false, null);
+            var consumerTag = await channel.Basic.Consume("test", "myConsumer", true, false, null, HandleIncomingMessage);
 
             Console.WriteLine("Press any key to quit");
             Console.ReadKey();
@@ -53,6 +53,12 @@ namespace Sample
             await channel.Close();
 
             await connection.Close();
+        }
+
+        public static Task HandleIncomingMessage(Basic.DeliverState messageState)
+        {
+
+            return Task.CompletedTask;
         }
     }
 }

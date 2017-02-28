@@ -18,6 +18,8 @@ namespace Angora
         readonly Action<object, ReadableBuffer, Exception> handle_CancelOk;
         readonly Action<object, ReadableBuffer, Exception> handle_RecoverOk;
 
+        Dictionary<string, Func<DeliverState, Task>> consumers;
+
         internal Basic(Socket socket, ushort channelNumber, uint maxContentBodySize, Func<uint, object, Action<object, ReadableBuffer, Exception>, Task> setExpectedReplyMethod, Action throwIfClosed)
         {
             methods = new BasicMethods(socket, channelNumber, maxContentBodySize);
@@ -56,12 +58,21 @@ namespace Angora
             }
         }
 
-        public async Task<string> Consume(string queue, string consumerTag, bool autoAck, bool exclusive, Dictionary<string, object> arguments)
+        Func<DeliverState, Task> pendingConsumer;
+
+        public async Task<string> Consume(string queue, string consumerTag, bool autoAck, bool exclusive, Dictionary<string, object> arguments, Func<DeliverState, Task> consumer)
         {
             ThrowIfClosed();
 
             var consumeOk = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
             await SetExpectedReplyMethod(Method.Basic.ConsumeOk, consumeOk, handle_ConsumeOk);
+
+            if (consumers == null)
+            {
+                consumers = new Dictionary<string, Func<DeliverState, Task>>();
+            }
+
+            pendingConsumer = consumer;
 
             await methods.Send_Consume(queue, consumerTag, autoAck, exclusive, arguments);
 
@@ -79,8 +90,13 @@ namespace Angora
             else
             {
                 var consumerTag = arguments.ReadShortString();
+
+                consumers.Add(consumerTag.value, pendingConsumer);
+
                 consumeOk.SetResult(consumerTag.value);
             }
+
+            pendingConsumer = null;
         }
 
         public async Task<string> Cancel(string consumerTag)
@@ -143,27 +159,50 @@ namespace Angora
             await methods.Send_Publish(exchange, routingKey, mandatory, properties, body);
         }
 
+        public class DeliverState
+        {
+            public string ConsumerTag { get; set; }
+
+            public ulong DeliveryTag { get; set; }
+
+            public bool Redelivered { get; set; }
+
+            public string Exchange { get; set; }
+
+            public string RoutingKey { get; set; }
+
+            public MessageProperties Properties { get; set; }
+
+            public byte[] Body { get; set; }
+        }
+
+
+        DeliverState pendingDelivery;
+
         internal Task Handle_Deliver(ReadableBuffer arguments)
         {
-            var consumerTag = arguments.ReadShortString();
-            arguments = arguments.Slice(consumerTag.position);
+            pendingDelivery = new DeliverState();
+            ReadCursor cursor;
 
-            var deliveryTag = arguments.ReadBigEndian<ulong>();
+            (pendingDelivery.ConsumerTag, cursor) = arguments.ReadShortString();
+            arguments = arguments.Slice(cursor);
+
+            pendingDelivery.DeliveryTag = arguments.ReadBigEndian<ulong>();
             arguments = arguments.Slice(sizeof(ulong));
 
-            var redelivered = Convert.ToBoolean(arguments.ReadBigEndian<byte>());
+            pendingDelivery.Redelivered = Convert.ToBoolean(arguments.ReadBigEndian<byte>());
             arguments.Slice(sizeof(byte));
 
-            var exchange = arguments.ReadShortString();
-            arguments = arguments.Slice(exchange.position);
+            (pendingDelivery.Exchange, cursor) = arguments.ReadShortString();
+            arguments = arguments.Slice(cursor);
 
-            var routingKey = arguments.ReadShortString();
-            arguments = arguments.Slice(routingKey.position);
+            (pendingDelivery.RoutingKey, cursor) = arguments.ReadShortString();
+            arguments = arguments.Slice(cursor);
 
             return Task.CompletedTask;
         }
 
-        internal Task Handle_ContentHeader(ReadableBuffer payload)
+        internal async Task Handle_ContentHeader(ReadableBuffer payload)
         {
             var classId = payload.ReadBigEndian<ushort>();
             payload = payload.Slice(sizeof(ushort));
@@ -174,16 +213,23 @@ namespace Angora
             var bodySize = payload.ReadBigEndian<ulong>();
             payload = payload.Slice(sizeof(ulong));
 
-            var properties = payload.ReadBasicProperties();
+            pendingDelivery.Properties = payload.ReadBasicProperties();
 
-            return Task.CompletedTask;
+            if (bodySize == 0)
+            {
+                pendingDelivery.Body = new byte[0];
+
+                await consumers[pendingDelivery.ConsumerTag](pendingDelivery);
+                pendingDelivery = null;
+            }
         }
 
-        internal Task Handle_ContentBody(ReadableBuffer payload)
+        internal async Task Handle_ContentBody(ReadableBuffer payload)
         {
-            var bytes = payload.ToArray();
+            pendingDelivery.Body = payload.ToArray();
 
-            return Task.CompletedTask;
+            await consumers[pendingDelivery.ConsumerTag](pendingDelivery);
+            pendingDelivery = null;
         }
     }
 }
