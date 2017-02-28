@@ -122,6 +122,31 @@ namespace Angora
             }
         }
 
+        public async Task Send_Ack(ulong deliveryTag, bool multiple)
+        {
+            var buffer = await socket.GetWriteBuffer();
+
+            try
+            {
+                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, channelNumber);
+
+                buffer.WriteBigEndian(Method.Basic.Ack);
+                buffer.WriteBigEndian(deliveryTag);
+                buffer.WriteBits(multiple);
+
+                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
+
+                buffer.WriteBigEndian(FrameEnd);
+
+                await buffer.FlushAsync();
+            }
+            finally
+            {
+                socket.ReleaseWriteBuffer();
+            }
+        }
+
+
         public async Task Send_Publish(string exchange, string routingKey, bool mandatory, MessageProperties properties, Span<byte> body)
         {
             var buffer = await socket.GetWriteBuffer();

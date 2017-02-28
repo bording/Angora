@@ -26,7 +26,8 @@ namespace Consumer
 
             await channel.Basic.Qos(0, 1, false);
 
-            var consumerTag = await channel.Basic.Consume("test", "Consumer", true, false, null, HandleIncomingMessage);
+            var consumer = new MesssageConsumer(channel.Basic);
+            var consumerTag = await channel.Basic.Consume("test", "Consumer", false, false, null, consumer.HandleIncomingMessage);
 
             Console.WriteLine("Consumer started. Press any key to quit.");
             Console.ReadKey();
@@ -37,11 +38,20 @@ namespace Consumer
 
             await connection.Close();
         }
+    }
 
-        static Task HandleIncomingMessage(Basic.DeliverState messageState)
+    class MesssageConsumer
+    {
+        Basic basic;
+
+        public MesssageConsumer(Basic basic)
         {
+            this.basic = basic;
+        }
 
-            return Task.CompletedTask;
+        public async Task HandleIncomingMessage(Basic.DeliverState messageState)
+        {
+            await basic.Ack(messageState.DeliveryTag, false);
         }
     }
 }

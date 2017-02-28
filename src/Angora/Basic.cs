@@ -152,6 +152,13 @@ namespace Angora
             }
         }
 
+        public async Task Ack(ulong deliveryTag, bool multiple)
+        {
+            ThrowIfClosed();
+
+            await methods.Send_Ack(deliveryTag, multiple);
+        }
+
         public async Task Publish(string exchange, string routingKey, bool mandatory, MessageProperties properties, Span<byte> body)
         {
             ThrowIfClosed();
