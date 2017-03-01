@@ -32,6 +32,9 @@ namespace Angora
         readonly CancellationTokenSource sendHeartbeats;
         readonly CancellationTokenSource readLoop;
 
+        Task sendHeartbeatsTask;
+        Task readLoopTask;
+
         ushort nextChannelNumber;
 
         public bool IsOpen { get; private set; }
@@ -72,7 +75,7 @@ namespace Angora
 
             await socket.Connect(endpoint);
 
-            Task.Run(() => ReadLoop(readLoop.Token)).Ignore();
+            readLoopTask = Task.Run(() => ReadLoop(readLoop.Token));
 
             await methods.Send_ProtocolHeader();
             (ChannelMax, FrameMax, HeartbeatInterval) = await readyToOpen.Task;
@@ -105,6 +108,7 @@ namespace Angora
 
             IsOpen = false;
             sendHeartbeats.Cancel();
+            await sendHeartbeatsTask;
 
             if (clientInitiated)
             {
@@ -117,6 +121,8 @@ namespace Angora
             }
 
             readLoop.Cancel();
+            socket.Input.CancelPendingRead();
+            await readLoopTask;
             socket.Close();
         }
 
@@ -173,13 +179,20 @@ namespace Angora
 
         async Task SendHeartbeats(ushort interval, CancellationToken token)
         {
-            await Task.Delay(200);
-
-            while (!token.IsCancellationRequested)
+            try
             {
-                await methods.Send_Heartbeat();
+                await Task.Delay(200, token);
 
-                await Task.Delay(TimeSpan.FromSeconds(interval));
+                while (!token.IsCancellationRequested)
+                {
+                    await methods.Send_Heartbeat();
+
+                    await Task.Delay(TimeSpan.FromSeconds(interval), token);
+                }
+            }
+            catch(OperationCanceledException)
+            {
+
             }
         }
 
@@ -260,7 +273,7 @@ namespace Angora
 
             var heartbeat = arguments.ReadBigEndian<ushort>();
 
-            Task.Run(() => SendHeartbeats(heartbeat, sendHeartbeats.Token)).Ignore();
+            sendHeartbeatsTask = Task.Run(() => SendHeartbeats(heartbeat, sendHeartbeats.Token));
 
             await methods.Send_TuneOk(channelMax, frameMax, heartbeat);
 
