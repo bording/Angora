@@ -138,8 +138,15 @@ namespace Angora
                     break;
                 }
 
+                ReadCursor consumed = buffer.Start;
+
                 while (!buffer.IsEmpty)
                 {
+                    if (buffer.Length < FrameHeaderSize)
+                    {
+                        break;
+                    }
+
                     var frameType = buffer.ReadBigEndian<byte>();
                     buffer = buffer.Slice(sizeof(byte));
 
@@ -148,6 +155,13 @@ namespace Angora
 
                     var payloadSize = buffer.ReadBigEndian<uint>();
                     buffer = buffer.Slice(sizeof(uint));
+
+                    if (buffer.Length < payloadSize + 1)
+                    {
+                        break;
+                    }
+
+                    buffer = buffer.Slice(buffer.Start);
 
                     var payload = buffer.Slice(buffer.Start, (int)payloadSize);
                     buffer = buffer.Slice((int)payloadSize);
@@ -171,9 +185,11 @@ namespace Angora
                             await HandleIncomingContent(channelNumber, frameType, payload);
                             break;
                     }
+
+                    consumed = buffer.Start;
                 }
 
-                socket.Input.Advance(buffer.Start, buffer.End);
+                socket.Input.Advance(consumed, buffer.End);
             }
         }
 
@@ -190,10 +206,7 @@ namespace Angora
                     await Task.Delay(TimeSpan.FromSeconds(interval), token);
                 }
             }
-            catch(OperationCanceledException)
-            {
-
-            }
+            catch (OperationCanceledException) { }
         }
 
         async Task HandleIncomingMethodFrame(ushort channelNumber, ReadableBuffer payload)
