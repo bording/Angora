@@ -24,7 +24,7 @@ namespace Consumer
 
             await channel.Queue.Declare("test", false, true, false, false, null);
 
-            await channel.Basic.Qos(0, 1, false);
+            await channel.Basic.Qos(0, 1000, false);
 
             var consumer = new MesssageConsumer(channel.Basic);
             var consumerTag = await channel.Basic.Consume("test", "Consumer", false, false, null, consumer.HandleIncomingMessage);
