@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
-VisualStudioVersion = 15.0.26206.0
+VisualStudioVersion = 15.0.27130.2010
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{F7982BD4-6042-4F44-B572-F6B2003C4D79}"
 EndProject
@@ -10,6 +10,11 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Angora", "src\Angora\Angora.csproj", "{E8609CF9-82CC-4CC1-94D3-A002188C0284}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Sample", "samples\Sample\Sample.csproj", "{7CF23DAB-4721-4C7E-AE88-EA599D90E03B}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{8B50B4A3-3488-476A-BC87-6F02394A7CD4}"
+	ProjectSection(SolutionItems) = preProject
+		Directory.Build.props = Directory.Build.props
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -32,5 +37,8 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{E8609CF9-82CC-4CC1-94D3-A002188C0284} = {F7982BD4-6042-4F44-B572-F6B2003C4D79}
 		{7CF23DAB-4721-4C7E-AE88-EA599D90E03B} = {C1D7C356-4377-4B2B-828F-A3FDCD185005}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {783BD17D-87DC-462F-903D-4CF9CC7228C1}
 	EndGlobalSection
 EndGlobal
