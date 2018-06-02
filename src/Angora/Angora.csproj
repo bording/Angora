@@ -1,11 +1,11 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFramework>netcoreapp2.1</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.IO.Pipelines.Networking.Sockets" Version="0.1.0-e170306-1" />
+    <PackageReference Include="System.IO.Pipelines" Version="4.5.0" />
   </ItemGroup>
 
 </Project>
