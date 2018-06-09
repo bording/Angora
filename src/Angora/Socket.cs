@@ -1,9 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO.Pipelines;
-using System.IO.Pipelines.Networking.Sockets;
 using System.Net;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -13,20 +10,20 @@ namespace Angora
     {
         public bool HeartbeatNeeded { get; private set; } = true;
 
-        SocketConnection connection;
+        readonly SocketConnection connection = new SocketConnection();
         readonly SemaphoreSlim semaphore = new SemaphoreSlim(1, 1);
 
         bool isOpen;
 
-        public IPipeReader Input => connection.Input;
+        public PipeReader Input => connection.Input;
 
         public async Task Connect(IPEndPoint endpoint)
         {
-            connection = await SocketConnection.ConnectAsync(endpoint);
+            await connection.ConnectAsync(endpoint);
             isOpen = true;
         }
 
-        public async Task<WritableBuffer> GetWriteBuffer(int minimumSize = 0)
+        public async Task<PipeWriter> GetWriteBuffer()
         {
             if (!isOpen)
             {
@@ -35,7 +32,7 @@ namespace Angora
 
             await semaphore.WaitAsync();
 
-            return connection.Output.Alloc(minimumSize);
+            return connection.Output;
         }
 
         public void ReleaseWriteBuffer(bool wroteHeartbeat = false)
