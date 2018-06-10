@@ -1,227 +1,210 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO.Pipelines;
 using System.Text;
 
 namespace Angora
 {
     static class ReadableBufferExtensions
     {
-        static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-
-        static (List<object> value, ReadCursor position) ReadArray(this ReadableBuffer buffer)
+        static List<object> ReadArray(this ref CustomBufferReader reader)
         {
             var result = new List<object>();
 
-            var arrayLength = buffer.ReadBigEndian<uint>();
-            buffer = buffer.Slice(sizeof(uint), (int)arrayLength);
+            var arrayLength = reader.ReadUInt32();
+            var buffer = reader.CurrentSegment.Slice(sizeof(uint), (int)arrayLength); //start is wrong?
 
             while (!buffer.IsEmpty)
             {
-                var (fieldValue, cursor) = buffer.ReadFieldValue();
-                buffer = buffer.Slice(cursor);
+                var before = reader.ConsumedBytes;
+
+                var fieldValue = reader.ReadFieldValue();
+
+                buffer = buffer.Slice(reader.ConsumedBytes - before);
 
                 result.Add(fieldValue);
             }
 
-            return (result, buffer.End);
+            return result;
         }
 
-        public static (Dictionary<string, object> value, ReadCursor position) ReadTable(this ReadableBuffer buffer)
+        public static Dictionary<string, object> ReadTable(this ref CustomBufferReader reader)
         {
             var result = new Dictionary<string, object>();
 
-            var tableLength = buffer.ReadBigEndian<uint>();
-            buffer = buffer.Slice(sizeof(uint), (int)tableLength);
+            var tableLength = reader.ReadUInt32();
+            var buffer = reader.CurrentSegment.Slice(sizeof(uint), (int)tableLength); //start is wrong?
 
             while (!buffer.IsEmpty)
             {
-                var (fieldName, cursor1) = buffer.ReadShortString();
-                buffer = buffer.Slice(cursor1);
+                var before = reader.ConsumedBytes;
 
-                var (fieldValue, cursor2) = buffer.ReadFieldValue();
-                buffer = buffer.Slice(cursor2);
+                var fieldName = reader.ReadShortString();
+                var fieldValue = reader.ReadFieldValue();
+
+                buffer = buffer.Slice(reader.ConsumedBytes - before);
 
                 result.Add(fieldName, fieldValue);
             }
 
-            return (result, buffer.End);
+            return result;
         }
 
-        static (object value, ReadCursor position) ReadFieldValue(this ReadableBuffer buffer)
+        static object ReadFieldValue(this ref CustomBufferReader reader)
         {
-            var fieldValueType = buffer.ReadBigEndian<byte>();
-            buffer = buffer.Slice(sizeof(byte));
+            var fieldValueType = reader.ReadByte();
 
             switch ((char)fieldValueType)
             {
                 case 't':
-                    return (Convert.ToBoolean(buffer.ReadBigEndian<byte>()), buffer.Move(buffer.Start, sizeof(byte)));
+                    return Convert.ToBoolean(reader.ReadByte());
                 case 'b':
-                    return (buffer.ReadBigEndian<sbyte>(), buffer.Move(buffer.Start, sizeof(sbyte)));
+                    return reader.ReadSByte();
                 case 'B':
-                    return (buffer.ReadBigEndian<byte>(), buffer.Move(buffer.Start, sizeof(byte)));
+                    return reader.ReadByte();
                 case 's':
-                    return (buffer.ReadBigEndian<short>(), buffer.Move(buffer.Start, sizeof(short)));
+                    return reader.ReadInt16();
                 case 'u':
-                    return (buffer.ReadBigEndian<ushort>(), buffer.Move(buffer.Start, sizeof(ushort)));
+                    return reader.ReadUInt16();
                 case 'I':
-                    return (buffer.ReadBigEndian<int>(), buffer.Move(buffer.Start, sizeof(int)));
+                    return reader.ReadInt32();
                 case 'i':
-                    return (buffer.ReadBigEndian<uint>(), buffer.Move(buffer.Start, sizeof(uint)));
+                    return reader.ReadUInt32();
                 case 'l':
-                    return (buffer.ReadBigEndian<long>(), buffer.Move(buffer.Start, sizeof(long)));
+                    return reader.ReadInt64();
                 case 'f':
-                    return (buffer.ReadBigEndian<float>(), buffer.Move(buffer.Start, sizeof(float)));
+                    return reader.ReadFloat();
                 case 'd':
-                    return (buffer.ReadBigEndian<double>(), buffer.Move(buffer.Start, sizeof(double)));
+                    return reader.ReadDouble();
                 case 'D':
-                    return buffer.ReadDecimal();
+                    return reader.ReadDecimal();
                 case 'S':
-                    return buffer.ReadLongString();
+                    return reader.ReadLongString();
                 case 'A':
-                    return buffer.ReadArray();
+                    return reader.ReadArray();
                 case 'T':
-                    return buffer.ReadTimestamp();
+                    return reader.ReadTimestamp();
                 case 'F':
-                    return buffer.ReadTable();
+                    return reader.ReadTable();
                 case 'V':
-                    return (null, buffer.Start);
+                    return null;
                 case 'x':
-                    return buffer.ReadBytes();
+                    return reader.ReadBytes();
                 default:
                     throw new Exception($"Unknown field value type: '{fieldValueType}'.");
             }
         }
 
-        public static (string value, ReadCursor position) ReadShortString(this ReadableBuffer buffer)
+        public static string ReadShortString(this ref CustomBufferReader reader)
         {
-            var length = buffer.ReadBigEndian<byte>();
-            var bytes = buffer.Slice(sizeof(byte), length);
+            var length = reader.ReadByte();
+            var bytes = reader.CurrentSegment.Slice(sizeof(byte), length); //start is wrong?
+            reader.Advance(bytes.Length);
 
-            return (Encoding.UTF8.GetString(bytes.ToArray()), bytes.End);
+            return Encoding.UTF8.GetString(bytes.ToArray());
         }
 
-        public static (string value, ReadCursor position) ReadLongString(this ReadableBuffer buffer)
+        public static string ReadLongString(this ref CustomBufferReader reader)
         {
-            var length = buffer.ReadBigEndian<uint>();
-            var bytes = buffer.Slice(sizeof(uint), (int)length);
+            var length = reader.ReadUInt32();
+            var bytes = reader.CurrentSegment.Slice(sizeof(uint), (int)length); //start is wrong?
+            reader.Advance(bytes.Length);
 
-            return (Encoding.UTF8.GetString(bytes.ToArray()), bytes.End);
+            return Encoding.UTF8.GetString(bytes.ToArray());
         }
 
-        static (byte[] value, ReadCursor position) ReadBytes(this ReadableBuffer buffer)
+        static byte[] ReadBytes(this ref CustomBufferReader reader)
         {
-            var length = buffer.ReadBigEndian<uint>();
-            var bytes = buffer.Slice(sizeof(uint), (int)length);
+            var length = reader.ReadUInt32();
+            var bytes = reader.CurrentSegment.Slice(sizeof(uint), (int)length); //start is wrong?
+            reader.Advance(bytes.Length);
 
-            return (bytes.ToArray(), bytes.End);
+            return bytes.ToArray();
         }
 
-        static (decimal value, ReadCursor position) ReadDecimal(this ReadableBuffer buffer)
+        static decimal ReadDecimal(this ref CustomBufferReader reader)
         {
-            var scale = buffer.ReadBigEndian<byte>();
-            buffer = buffer.Slice(sizeof(byte));
+            var scale = reader.ReadByte();
+            var value = reader.ReadUInt32();
 
-            var value = buffer.ReadBigEndian<uint>();
-            buffer = buffer.Slice(sizeof(uint));
-
-            return (default(decimal), buffer.Start); //TODO return real value
+            return default; //TODO return real value
         }
 
-        static (DateTime value, ReadCursor position) ReadTimestamp(this ReadableBuffer buffer)
+        static DateTime ReadTimestamp(this ref CustomBufferReader reader)
         {
-            var time = buffer.ReadBigEndian<ulong>();
-            buffer = buffer.Slice(sizeof(ulong));
+            var time = reader.ReadUInt64();
 
-            return (UnixEpoch.AddSeconds(time), buffer.Start);
+            return DateTimeOffset.FromUnixTimeSeconds((long)time).DateTime; //TODO check the cast
         }
 
-        public static MessageProperties ReadBasicProperties(this ReadableBuffer buffer)
+        public static MessageProperties ReadBasicProperties(this ref CustomBufferReader reader)
         {
             var properties = new MessageProperties();
 
-            var flags = buffer.ReadBigEndian<ushort>();
-            buffer = buffer.Slice(sizeof(ushort));
-
-            ReadCursor cursor;
+            var flags = reader.ReadUInt16();
 
             if ((flags & 1 << 15) != 0)
             {
-                (properties.ContentType, cursor) = buffer.ReadShortString();
-                buffer = buffer.Slice(cursor);
+                properties.ContentType = reader.ReadShortString();
             }
 
             if ((flags & 1 << 14) != 0)
             {
-                (properties.ContentEncoding, cursor) = buffer.ReadShortString();
-                buffer = buffer.Slice(cursor);
+                properties.ContentEncoding = reader.ReadShortString();
             }
 
             if ((flags & 1 << 13) != 0)
             {
-                (properties.Headers, cursor) = buffer.ReadTable();
-                buffer = buffer.Slice(cursor);
+                properties.Headers = reader.ReadTable();
             }
 
             if ((flags & 1 << 12) != 0)
             {
-                properties.DeliveryMode = buffer.ReadBigEndian<byte>();
-                buffer = buffer.Slice(sizeof(byte));
+                properties.DeliveryMode = reader.ReadByte();
             }
 
             if ((flags & 1 << 11) != 0)
             {
-                properties.Priority = buffer.ReadBigEndian<byte>();
-                buffer = buffer.Slice(sizeof(byte));
+                properties.Priority = reader.ReadByte();
             }
 
             if ((flags & 1 << 10) != 0)
             {
-                (properties.CorrelationId, cursor) = buffer.ReadShortString();
-                buffer = buffer.Slice(cursor);
+                properties.CorrelationId = reader.ReadShortString();
             }
 
             if ((flags & 1 << 9) != 0)
             {
-                (properties.ReplyTo, cursor) = buffer.ReadShortString();
-                buffer = buffer.Slice(cursor);
+                properties.ReplyTo = reader.ReadShortString();
             }
 
             if ((flags & 1 << 8) != 0)
             {
-                (properties.Expiration, cursor) = buffer.ReadShortString();
-                buffer = buffer.Slice(cursor);
+                properties.Expiration = reader.ReadShortString();
             }
 
             if ((flags & 1 << 7) != 0)
             {
-                (properties.MessageId, cursor) = buffer.ReadShortString();
-                buffer = buffer.Slice(cursor);
+                properties.MessageId = reader.ReadShortString();
             }
 
             if ((flags & 1 << 6) != 0)
             {
-                (properties.Timestamp, cursor) = buffer.ReadTimestamp();
-                buffer = buffer.Slice(cursor);
+                properties.Timestamp = reader.ReadTimestamp();
             }
 
             if ((flags & 1 << 5) != 0)
             {
-                (properties.Type, cursor) = buffer.ReadShortString();
-                buffer = buffer.Slice(cursor);
+                properties.Type = reader.ReadShortString();
             }
 
             if ((flags & 1 << 4) != 0)
             {
-                (properties.UserId, cursor) = buffer.ReadShortString();
-                buffer = buffer.Slice(cursor);
+                properties.UserId = reader.ReadShortString();
             }
 
             if ((flags & 1 << 3) != 0)
             {
-                (properties.AppId, cursor) = buffer.ReadShortString();
-                buffer = buffer.Slice(cursor);
+                properties.AppId = reader.ReadShortString();
             }
 
             return properties;
