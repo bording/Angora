@@ -4,7 +4,7 @@ using System.Text;
 
 namespace Angora
 {
-    static class ReadableBufferExtensions
+    static class CustomBufferReaderExtensions
     {
         static List<object> ReadArray(this ref CustomBufferReader reader)
         {
