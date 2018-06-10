@@ -1,7 +1,6 @@
 ﻿using System;
-using System.Binary;
+using System.Buffers;
 using System.Collections.Generic;
-using System.IO.Pipelines;
 using System.Linq;
 using System.Net;
 using System.Threading;
@@ -138,59 +137,62 @@ namespace Angora
                     break;
                 }
 
-                ReadCursor consumed = buffer.Start;
+                var examined = buffer.End;
 
-                while (!buffer.IsEmpty)
+                var consumed = Read(buffer);
+
+                socket.Input.AdvanceTo(consumed, examined);
+            }
+        }
+
+        SequencePosition Read(ReadOnlySequence<byte> buffer)
+        {
+            var reader = new CustomBufferReader(buffer);
+
+            while (!reader.End)
+            {
+                if (buffer.Length < FrameHeaderSize)
                 {
-                    if (buffer.Length < FrameHeaderSize)
-                    {
-                        break;
-                    }
-
-                    var frameType = buffer.ReadBigEndian<byte>();
-                    buffer = buffer.Slice(sizeof(byte));
-
-                    var channelNumber = buffer.ReadBigEndian<ushort>();
-                    buffer = buffer.Slice(sizeof(ushort));
-
-                    var payloadSize = buffer.ReadBigEndian<uint>();
-                    buffer = buffer.Slice(sizeof(uint));
-
-                    if (buffer.Length < payloadSize + 1)
-                    {
-                        break;
-                    }
-
-                    buffer = buffer.Slice(buffer.Start);
-
-                    var payload = buffer.Slice(buffer.Start, (int)payloadSize);
-                    buffer = buffer.Slice((int)payloadSize);
-
-                    var frameEnd = buffer.ReadBigEndian<byte>();
-                    buffer = buffer.Slice(sizeof(byte));
-
-                    if (frameEnd != FrameEnd)
-                    {
-                        //TODO other stuff here around what this means
-                        throw new Exception();
-                    }
-
-                    switch (frameType)
-                    {
-                        case FrameType.Method:
-                            await HandleIncomingMethodFrame(channelNumber, payload);
-                            break;
-                        case FrameType.ContentHeader:
-                        case FrameType.ContentBody:
-                            await HandleIncomingContent(channelNumber, frameType, payload);
-                            break;
-                    }
-
-                    consumed = buffer.Start;
+                    break;
                 }
 
-                socket.Input.Advance(consumed, buffer.End);
+                var frameType = (byte)reader.Read();
+                var channelNumber = reader.ReadUInt16();
+                var payloadSize = reader.ReadUInt32();
+
+                buffer = buffer.Slice(reader.Position);
+
+                if (buffer.Length < payloadSize + 1)
+                {
+                    break;
+                }
+
+                var payload = buffer.Slice(reader.Position, payloadSize);
+                reader.Advance(payloadSize);
+
+                var frameEnd = reader.ReadByte();
+
+                if (frameEnd != FrameEnd)
+                {
+                    //TODO other stuff here around what this means
+                    throw new Exception();
+                }
+
+                switch (frameType)
+                {
+                    case FrameType.Method:
+                        await HandleIncomingMethodFrame(channelNumber, payload);
+                        break;
+                    case FrameType.ContentHeader:
+                    case FrameType.ContentBody:
+                        await HandleIncomingContent(channelNumber, frameType, payload);
+                        break;
+                }
+
+                buffer = buffer.Slice(reader.Position);
             }
+
+            return reader.Position;
         }
 
         async Task SendHeartbeats(ushort interval, CancellationToken token)
@@ -209,7 +211,7 @@ namespace Angora
             catch (OperationCanceledException) { }
         }
 
-        async Task HandleIncomingMethodFrame(ushort channelNumber, ReadableBuffer payload)
+        async Task HandleIncomingMethodFrame(ushort channelNumber, ReadOnlySequence<byte> payload)
         {
             var method = payload.ReadBigEndian<uint>();
             payload = payload.Slice(sizeof(uint));
@@ -226,12 +228,12 @@ namespace Angora
             }
         }
 
-        Task HandleIncomingContent(ushort channelNumber, byte frameType, ReadableBuffer payload)
+        Task HandleIncomingContent(ushort channelNumber, byte frameType, ReadOnlySequence<byte> payload)
         {
             return channels[channelNumber].HandleIncomingContent(frameType, payload);
         }
 
-        async Task HandleIncomingMethod(uint method, ReadableBuffer arguments)
+        async Task HandleIncomingMethod(uint method, ReadOnlySequence<byte> arguments)
         {
             switch (method)
             {
@@ -257,57 +259,61 @@ namespace Angora
             }
         }
 
-        async Task Handle_Start(ReadableBuffer arguments)
+        Task Handle_Start(ReadOnlySequence<byte> buffer)
         {
-            var versionMajor = arguments.ReadBigEndian<byte>();
-            arguments = arguments.Slice(sizeof(byte));
+            var reader = new CustomBufferReader(buffer);
 
-            var versionMinor = arguments.ReadBigEndian<byte>();
-            arguments = arguments.Slice(sizeof(byte));
+            var versionMajor = reader.ReadByte();
+            var versionMinor = reader.ReadByte();
+            var serverProperties = reader.ReadTable();
+            var mechanism = reader.ReadLongString();
+            var locales = reader.ReadLongString();
 
-            var serverProperties = arguments.ReadTable();
-            arguments = arguments.Slice(serverProperties.position);
-
-            var mechanism = arguments.ReadLongString();
-            arguments = arguments.Slice(mechanism.position);
-
-            var locales = arguments.ReadLongString();
-
-            await methods.Send_StartOk(connectionName, userName, password);
+            return methods.Send_StartOk(connectionName, userName, password);
         }
 
-        async Task Handle_Tune(ReadableBuffer arguments)
+        async Task Handle_Tune(ReadOnlySequence<byte> buffer)
         {
-            var channelMax = arguments.ReadBigEndian<ushort>();
-            arguments = arguments.Slice(sizeof(ushort));
+            var arguments = ReadArguments();
 
-            var frameMax = arguments.ReadBigEndian<uint>();
-            arguments = arguments.Slice(sizeof(uint));
+            sendHeartbeatsTask = Task.Run(() => SendHeartbeats(arguments.heartbeat, sendHeartbeats.Token));
 
-            var heartbeat = arguments.ReadBigEndian<ushort>();
+            await methods.Send_TuneOk(arguments.channelMax, arguments.frameMax, arguments.heartbeat);
 
-            sendHeartbeatsTask = Task.Run(() => SendHeartbeats(heartbeat, sendHeartbeats.Token));
+            readyToOpen.SetResult((arguments.channelMax, arguments.frameMax, arguments.heartbeat));
 
-            await methods.Send_TuneOk(channelMax, frameMax, heartbeat);
+            (ushort channelMax, uint frameMax, ushort heartbeat) ReadArguments()
+            {
+                var reader = new CustomBufferReader(buffer);
 
-            readyToOpen.SetResult((channelMax, frameMax, heartbeat));
+                var channelMax = reader.ReadUInt16();
+                var frameMax = reader.ReadUInt32();
+                var heartbeat = reader.ReadUInt16();
+
+                return (channelMax, frameMax, heartbeat);
+            }
         }
 
-        async Task Handle_Close(ReadableBuffer arguments)
+        async Task Handle_Close(ReadOnlySequence<byte> buffer)
         {
-            var replyCode = arguments.ReadBigEndian<ushort>();
-            arguments = arguments.Slice(sizeof(ushort));
-
-            var (replyText, cursor) = arguments.ReadShortString();
-            arguments = arguments.Slice(cursor);
-
-            var method = arguments.ReadBigEndian<uint>();
+            var arguments = ReadArguments();
 
             await Close(false);
 
             foreach (var channel in channels)
             {
-                channel.Value.Handle_Connection_Close(replyCode, replyText, method);
+                channel.Value.Handle_Connection_Close(arguments.replyCode, arguments.replyText, arguments.method);
+            }
+
+            (ushort replyCode, string replyText, uint method) ReadArguments()
+            {
+                var reader = new CustomBufferReader(buffer);
+
+                var replyCode = reader.ReadUInt16();
+                var replyText = reader.ReadShortString();
+                var method = reader.ReadUInt32();
+
+                return (replyCode, replyText, method);
             }
         }
     }
