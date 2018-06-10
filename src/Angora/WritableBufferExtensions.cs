@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Binary;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO.Pipelines;
 using System.Text;
@@ -10,23 +10,23 @@ namespace Angora
     {
         static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
-        public static Span<byte> WriteFrameHeader(this WritableBuffer buffer, byte frameType, ushort channel)
+        public static Span<byte> WriteFrameHeader(this ref CustomBufferWriter<PipeWriter> writer, byte frameType, ushort channel)
         {
-            buffer.WriteBigEndian(frameType);
-            buffer.WriteBigEndian(channel);
+            writer.Write(frameType);
+            writer.Write(channel);
 
-            buffer.Ensure(sizeof(uint));
-            var sizeBookmark = buffer.Memory.Span;
-            buffer.Advance(sizeof(uint));
+            writer.Ensure(sizeof(uint));
+            var sizeBookmark = writer.Span;
+            writer.Advance(sizeof(uint));
 
             return sizeBookmark;
         }
 
-        public static void WriteShortString(this WritableBuffer buffer, string value)
+        public static void WriteShortString(this ref CustomBufferWriter<PipeWriter> writer, string value)
         {
             if (value == null)
             {
-                buffer.WriteBigEndian<byte>(0);
+                writer.Write((byte)0);
                 return;
             }
 
@@ -37,25 +37,25 @@ namespace Angora
                 throw new ArgumentOutOfRangeException(nameof(value), "value is too long for a short string");
             }
 
-            buffer.WriteBigEndian((byte)valueBytes.Length);
-            buffer.Write(valueBytes);
+            writer.Write((byte)valueBytes.Length);
+            writer.Write(valueBytes);
         }
 
-        public static void WriteLongString(this WritableBuffer buffer, string value)
+        public static void WriteLongString(this ref CustomBufferWriter<PipeWriter> writer, string value)
         {
             if (value == null)
             {
-                buffer.WriteBigEndian<uint>(0);
+                writer.Write((byte)0);
                 return;
             }
 
             var valueBytes = Encoding.UTF8.GetBytes(value);
 
-            buffer.WriteBigEndian((uint)valueBytes.Length);
-            buffer.Write(valueBytes);
+            writer.Write((uint)valueBytes.Length);
+            writer.Write(valueBytes);
         }
 
-        public static void WriteBits(this WritableBuffer buffer, bool bit0 = false, bool bit1 = false, bool bit2 = false, bool bit3 = false, bool bit4 = false, bool bit5 = false, bool bit6 = false, bool bit7 = false)
+        public static void WriteBits(this ref CustomBufferWriter<PipeWriter> writer, bool bit0 = false, bool bit1 = false, bool bit2 = false, bool bit3 = false, bool bit4 = false, bool bit5 = false, bool bit6 = false, bool bit7 = false)
         {
             byte bits = 0;
 
@@ -68,241 +68,245 @@ namespace Angora
             bits |= (byte)(Convert.ToInt32(bit6) << 6);
             bits |= (byte)(Convert.ToInt32(bit7) << 7);
 
-            buffer.WriteBigEndian(bits);
+            writer.Write(bits);
         }
 
-        static void WriteArray(this WritableBuffer buffer, List<object> value)
+        static void WriteArray(this ref CustomBufferWriter<PipeWriter> writer, List<object> value)
         {
-            buffer.Ensure(sizeof(uint));
-            var sizeBookmark = buffer.Memory.Span;
-            buffer.Advance(sizeof(uint));
+            writer.Ensure(sizeof(uint));
+            var sizeBookmark = writer.Span;
+            writer.Advance(sizeof(uint));
 
-            var before = (uint)buffer.BytesWritten;
+            writer.Commit();
+            var before = (uint)writer.BytesCommitted;
 
             if (value != null)
             {
                 foreach (var item in value)
                 {
-                    buffer.WriteFieldValue(item);
+                    writer.WriteFieldValue(item);
                 }
             }
 
-            sizeBookmark.WriteBigEndian((uint)buffer.BytesWritten - before);
+            writer.Commit();
+            BinaryPrimitives.WriteUInt32BigEndian(sizeBookmark, (uint)writer.BytesCommitted - before);
         }
 
-        public static void WriteTable(this WritableBuffer buffer, Dictionary<string, object> value)
+        public static void WriteTable(this ref CustomBufferWriter<PipeWriter> writer, Dictionary<string, object> value)
         {
-            buffer.Ensure(sizeof(uint));
-            var sizeBookmark = buffer.Memory.Span;
-            buffer.Advance(sizeof(uint));
+            writer.Ensure(sizeof(uint));
+            var sizeBookmark = writer.Span;
+            writer.Advance(sizeof(uint));
 
-            var before = (uint)buffer.BytesWritten;
+            writer.Commit();
+            var before = (uint)writer.BytesCommitted;
 
             if (value != null)
             {
                 foreach (var item in value)
                 {
-                    buffer.WriteShortString(item.Key);
-                    buffer.WriteFieldValue(item.Value);
+                    writer.WriteShortString(item.Key);
+                    writer.WriteFieldValue(item.Value);
                 }
             }
 
-            sizeBookmark.WriteBigEndian((uint)buffer.BytesWritten - before);
+            writer.Commit();
+            BinaryPrimitives.WriteUInt32BigEndian(sizeBookmark, (uint)writer.BytesCommitted - before);
         }
 
-        static void WriteFieldValue(this WritableBuffer buffer, object value)
+        static void WriteFieldValue(this ref CustomBufferWriter<PipeWriter> writer, object value)
         {
             switch (value)
             {
                 case null:
-                    buffer.WriteBigEndian((byte)'V');
+                    writer.Write((byte)'V');
                     break;
                 case bool t:
-                    buffer.WriteBigEndian((byte)'t');
-                    buffer.WriteBigEndian(t ? (byte)1 : (byte)0);
+                    writer.Write((byte)'t');
+                    writer.Write(t ? (byte)1 : (byte)0);
                     break;
                 case sbyte b:
-                    buffer.WriteBigEndian((byte)'b');
-                    buffer.WriteBigEndian(b);
+                    writer.Write((byte)'b');
+                    writer.Write(b);
                     break;
                 case byte B:
-                    buffer.WriteBigEndian((byte)'B');
-                    buffer.WriteBigEndian(B);
+                    writer.Write((byte)'B');
+                    writer.Write(B);
                     break;
                 case short s:
-                    buffer.WriteBigEndian((byte)'s');
-                    buffer.WriteBigEndian(s);
+                    writer.Write((byte)'s');
+                    writer.Write(s);
                     break;
                 case ushort u:
-                    buffer.WriteBigEndian((byte)'u');
-                    buffer.WriteBigEndian(u);
+                    writer.Write((byte)'u');
+                    writer.Write(u);
                     break;
                 case int I:
-                    buffer.WriteBigEndian((byte)'I');
-                    buffer.WriteBigEndian(I);
+                    writer.Write((byte)'I');
+                    writer.Write(I);
                     break;
                 case uint i:
-                    buffer.WriteBigEndian((byte)'i');
-                    buffer.WriteBigEndian(i);
+                    writer.Write((byte)'i');
+                    writer.Write(i);
                     break;
                 case long l:
-                    buffer.WriteBigEndian((byte)'l');
-                    buffer.WriteBigEndian(l);
+                    writer.Write((byte)'l');
+                    writer.Write(l);
                     break;
                 case float f:
-                    buffer.WriteBigEndian((byte)'f');
-                    buffer.WriteBigEndian(f);
+                    writer.Write((byte)'f');
+                    writer.Write(f);
                     break;
                 case double d:
-                    buffer.WriteBigEndian((byte)'f');
-                    buffer.WriteBigEndian(d);
+                    writer.Write((byte)'f');
+                    writer.Write(d);
                     break;
                 case decimal D:
-                    buffer.WriteBigEndian((byte)'D');
-                    buffer.WriteDecimal(D);
+                    writer.Write((byte)'D');
+                    writer.WriteDecimal(D);
                     break;
                 case string S:
-                    buffer.WriteBigEndian((byte)'S');
-                    buffer.WriteLongString(S);
+                    writer.Write((byte)'S');
+                    writer.WriteLongString(S);
                     break;
                 case List<object> A:
-                    buffer.WriteBigEndian((byte)'A');
-                    buffer.WriteArray(A);
+                    writer.Write((byte)'A');
+                    writer.WriteArray(A);
                     break;
                 case DateTime T:
-                    buffer.WriteBigEndian((byte)'T');
-                    buffer.WriteTimestamp(T);
+                    writer.Write((byte)'T');
+                    writer.WriteTimestamp(T);
                     break;
                 case Dictionary<string, object> F:
-                    buffer.WriteBigEndian((byte)'F');
-                    buffer.WriteTable(F);
+                    writer.Write((byte)'F');
+                    writer.WriteTable(F);
                     break;
                 case byte[] x:
-                    buffer.WriteBigEndian((byte)'x');
-                    buffer.WriteBytes(x);
+                    writer.Write((byte)'x');
+                    writer.WriteBytes(x);
                     break;
                 default:
                     throw new Exception($"Unknown field value type: '{value.GetType()}'.");
             }
         }
 
-        static void WriteDecimal(this WritableBuffer buffer, decimal value)
+        static void WriteDecimal(this ref CustomBufferWriter<PipeWriter> writer, decimal value)
         {
             //TODO write real values
 
-            buffer.WriteBigEndian((byte)0); //scale
-            buffer.WriteBigEndian((uint)0); //value
+            writer.Write((byte)0); //scale
+            writer.Write((uint)0); //value
         }
 
-        static void WriteTimestamp(this WritableBuffer buffer, DateTime value)
+        static void WriteTimestamp(this ref CustomBufferWriter<PipeWriter> writer, DateTime value)
         {
             var timestamp = (ulong)(value.ToUniversalTime() - UnixEpoch).TotalSeconds;
-            buffer.WriteBigEndian(timestamp);
+            writer.Write(timestamp);
         }
 
-        static void WriteBytes(this WritableBuffer buffer, byte[] value)
+        static void WriteBytes(this ref CustomBufferWriter<PipeWriter> writer, byte[] value)
         {
             if (value == null)
             {
-                buffer.WriteBigEndian<byte>(0);
+                writer.Write((byte)0);
                 return;
             }
 
-            buffer.WriteBigEndian((byte)value.Length);
+            writer.Write((byte)value.Length);
 
             for (int i = 0; i < value.Length; i++)
             {
-                buffer.WriteBigEndian(value[i]);
+                writer.Write(value[i]);
             }
         }
 
-        public static void WriteBasicProperties(this WritableBuffer buffer, MessageProperties properties)
+        public static void WriteBasicProperties(this ref CustomBufferWriter<PipeWriter> writer, MessageProperties properties)
         {
-            buffer.Ensure(sizeof(ushort));
-            var flagsBookmark = buffer.Memory.Span;
-            buffer.Advance(sizeof(ushort));
+            writer.Ensure(sizeof(ushort));
+            var flagsBookmark = writer.Span;
+            writer.Advance(sizeof(ushort));
 
             var flags = (ushort)0;
 
             if (properties.ContentType != null)
             {
                 flags |= 1 << 15;
-                buffer.WriteShortString(properties.ContentType);
+                writer.WriteShortString(properties.ContentType);
             }
 
             if (properties.ContentEncoding != null)
             {
                 flags |= 1 << 14;
-                buffer.WriteShortString(properties.ContentEncoding);
+                writer.WriteShortString(properties.ContentEncoding);
             }
 
             if (properties.Headers != null)
             {
                 flags |= 1 << 13;
-                buffer.WriteTable(properties.Headers);
+                writer.WriteTable(properties.Headers);
             }
 
             if (properties.DeliveryMode != 0)
             {
                 flags |= 1 << 12;
-                buffer.WriteBigEndian(properties.DeliveryMode);
+                writer.Write(properties.DeliveryMode);
             }
 
             if (properties.Priority != 0)
             {
                 flags |= 1 << 11;
-                buffer.WriteBigEndian(properties.Priority);
+                writer.Write(properties.Priority);
             }
 
             if (properties.CorrelationId != null)
             {
                 flags |= 1 << 10;
-                buffer.WriteShortString(properties.CorrelationId);
+                writer.WriteShortString(properties.CorrelationId);
             }
 
             if (properties.ReplyTo != null)
             {
                 flags |= 1 << 9;
-                buffer.WriteShortString(properties.ReplyTo);
+                writer.WriteShortString(properties.ReplyTo);
             }
 
             if (properties.Expiration != null)
             {
                 flags |= 1 << 8;
-                buffer.WriteShortString(properties.Expiration);
+                writer.WriteShortString(properties.Expiration);
             }
 
             if (properties.MessageId != null)
             {
                 flags |= 1 << 7;
-                buffer.WriteShortString(properties.MessageId);
+                writer.WriteShortString(properties.MessageId);
             }
 
             if (properties.Timestamp != default(DateTime))
             {
                 flags |= 1 << 6;
-                buffer.WriteTimestamp(properties.Timestamp);
+                writer.WriteTimestamp(properties.Timestamp);
             }
 
             if (properties.Type != null)
             {
                 flags |= 1 << 5;
-                buffer.WriteShortString(properties.Type);
+                writer.WriteShortString(properties.Type);
             }
 
             if (properties.UserId != null)
             {
                 flags |= 1 << 4;
-                buffer.WriteShortString(properties.UserId);
+                writer.WriteShortString(properties.UserId);
             }
 
             if (properties.AppId != null)
             {
                 flags |= 1 << 3;
-                buffer.WriteShortString(properties.AppId);
+                writer.WriteShortString(properties.AppId);
             }
 
-            flagsBookmark.WriteBigEndian(flags);
+            BinaryPrimitives.WriteUInt16BigEndian(flagsBookmark, flags);
         }
     }
 }
