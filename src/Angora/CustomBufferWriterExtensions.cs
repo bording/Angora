@@ -8,8 +8,6 @@ namespace Angora
 {
     static class CustomBufferWriterExtensions
     {
-        static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-
         public static Span<byte> WriteFrameHeader(this ref CustomBufferWriter<PipeWriter> writer, byte frameType, ushort channel)
         {
             writer.Write(frameType);
@@ -200,7 +198,8 @@ namespace Angora
 
         static void WriteTimestamp(this ref CustomBufferWriter<PipeWriter> writer, DateTime value)
         {
-            var timestamp = (ulong)(value.ToUniversalTime() - UnixEpoch).TotalSeconds;
+            var dateTimeOffset = new DateTimeOffset(value);
+            var timestamp = (ulong)dateTimeOffset.ToUnixTimeSeconds();
             writer.Write(timestamp);
         }
 
