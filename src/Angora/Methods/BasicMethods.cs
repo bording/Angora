@@ -1,8 +1,7 @@
 ﻿using System;
-using System.Binary;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO.Pipelines;
-using System.Text;
 using System.Threading.Tasks;
 
 using static Angora.AmqpConstants;
@@ -28,22 +27,31 @@ namespace Angora
 
             try
             {
-                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, channelNumber);
-
-                buffer.WriteBigEndian(Method.Basic.Qos);
-                buffer.WriteBigEndian(prefetchSize);
-                buffer.WriteBigEndian(prefetchCount);
-                buffer.WriteBits(global);
-
-                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
-
-                buffer.WriteBigEndian(FrameEnd);
-
+                WritePayload();
                 await buffer.FlushAsync();
             }
             finally
             {
                 socket.ReleaseWriteBuffer();
+            }
+
+            void WritePayload()
+            {
+                var writer = new CustomBufferWriter<PipeWriter>(buffer);
+
+                var payloadSizeHeader = writer.WriteFrameHeader(FrameType.Method, channelNumber);
+
+                writer.Write(Method.Basic.Qos);
+                writer.Write(prefetchSize);
+                writer.Write(prefetchCount);
+                writer.WriteBits(global);
+
+                writer.Commit();
+                BinaryPrimitives.WriteUInt32BigEndian(payloadSizeHeader, ((uint)writer.BytesCommitted - FrameHeaderSize));
+
+                writer.Write(FrameEnd);
+
+                writer.Commit();
             }
         }
 
@@ -53,25 +61,34 @@ namespace Angora
 
             try
             {
-                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, channelNumber);
-
-                buffer.WriteBigEndian(Method.Basic.Consume);
-                buffer.WriteBigEndian(Reserved);
-                buffer.WriteBigEndian(Reserved);
-                buffer.WriteShortString(queue);
-                buffer.WriteShortString(consumerTag);
-                buffer.WriteBits(false, autoAck, exclusive);
-                buffer.WriteTable(arguments);
-
-                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
-
-                buffer.WriteBigEndian(FrameEnd);
-
+                WritePayload();
                 await buffer.FlushAsync();
             }
             finally
             {
                 socket.ReleaseWriteBuffer();
+            }
+
+            void WritePayload()
+            {
+                var writer = new CustomBufferWriter<PipeWriter>(buffer);
+
+                var payloadSizeHeader = writer.WriteFrameHeader(FrameType.Method, channelNumber);
+
+                writer.Write(Method.Basic.Consume);
+                writer.Write(Reserved);
+                writer.Write(Reserved);
+                writer.WriteShortString(queue);
+                writer.WriteShortString(consumerTag);
+                writer.WriteBits(false, autoAck, exclusive);
+                writer.WriteTable(arguments);
+
+                writer.Commit();
+                BinaryPrimitives.WriteUInt32BigEndian(payloadSizeHeader, ((uint)writer.BytesCommitted - FrameHeaderSize));
+
+                writer.Write(FrameEnd);
+
+                writer.Commit();
             }
         }
 
@@ -81,21 +98,30 @@ namespace Angora
 
             try
             {
-                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, channelNumber);
-
-                buffer.WriteBigEndian(Method.Basic.Cancel);
-                buffer.WriteShortString(consumerTag);
-                buffer.WriteBits();
-
-                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
-
-                buffer.WriteBigEndian(FrameEnd);
-
+                WritePayload();
                 await buffer.FlushAsync();
             }
             finally
             {
                 socket.ReleaseWriteBuffer();
+            }
+
+            void WritePayload()
+            {
+                var writer = new CustomBufferWriter<PipeWriter>(buffer);
+
+                var payloadSizeHeader = writer.WriteFrameHeader(FrameType.Method, channelNumber);
+
+                writer.Write(Method.Basic.Cancel);
+                writer.WriteShortString(consumerTag);
+                writer.WriteBits();
+
+                writer.Commit();
+                BinaryPrimitives.WriteUInt32BigEndian(payloadSizeHeader, ((uint)writer.BytesCommitted - FrameHeaderSize));
+
+                writer.Write(FrameEnd);
+
+                writer.Commit();
             }
         }
 
@@ -105,20 +131,29 @@ namespace Angora
 
             try
             {
-                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, channelNumber);
-
-                buffer.WriteBigEndian(Method.Basic.Recover);
-                buffer.WriteBits(true);
-
-                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
-
-                buffer.WriteBigEndian(FrameEnd);
-
+                WritePayload();
                 await buffer.FlushAsync();
             }
             finally
             {
                 socket.ReleaseWriteBuffer();
+            }
+
+            void WritePayload()
+            {
+                var writer = new CustomBufferWriter<PipeWriter>(buffer);
+
+                var payloadSizeHeader = writer.WriteFrameHeader(FrameType.Method, channelNumber);
+
+                writer.Write(Method.Basic.Recover);
+                writer.WriteBits(true);
+
+                writer.Commit();
+                BinaryPrimitives.WriteUInt32BigEndian(payloadSizeHeader, ((uint)writer.BytesCommitted - FrameHeaderSize));
+
+                writer.Write(FrameEnd);
+
+                writer.Commit();
             }
         }
 
@@ -128,44 +163,68 @@ namespace Angora
 
             try
             {
-                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, channelNumber);
-
-                buffer.WriteBigEndian(Method.Basic.Ack);
-                buffer.WriteBigEndian(deliveryTag);
-                buffer.WriteBits(multiple);
-
-                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
-
-                buffer.WriteBigEndian(FrameEnd);
-
+                WritePayload();
                 await buffer.FlushAsync();
             }
             finally
             {
                 socket.ReleaseWriteBuffer();
             }
+
+            void WritePayload()
+            {
+                var writer = new CustomBufferWriter<PipeWriter>(buffer);
+
+                var payloadSizeHeader = writer.WriteFrameHeader(FrameType.Method, channelNumber);
+
+                writer.Write(Method.Basic.Ack);
+                writer.Write(deliveryTag);
+                writer.WriteBits(multiple);
+
+                writer.Commit();
+                BinaryPrimitives.WriteUInt32BigEndian(payloadSizeHeader, ((uint)writer.BytesCommitted - FrameHeaderSize));
+
+                writer.Write(FrameEnd);
+
+                writer.Commit();
+            }
         }
 
-
-        public async Task Send_Publish(string exchange, string routingKey, bool mandatory, MessageProperties properties, Span<byte> body)
+        public async Task Send_Publish(string exchange, string routingKey, bool mandatory, MessageProperties properties, Memory<byte> bodyBytes)
         {
             var buffer = await socket.GetWriteBuffer();
 
             try
             {
-                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, channelNumber);
+                WritePayload();
+                await buffer.FlushAsync();
+            }
+            finally
+            {
+                socket.ReleaseWriteBuffer();
+            }
 
-                buffer.WriteBigEndian(Method.Basic.Publish);
-                buffer.WriteBigEndian(Reserved);
-                buffer.WriteBigEndian(Reserved);
-                buffer.WriteShortString(exchange);
-                buffer.WriteShortString(routingKey);
-                buffer.WriteBits(mandatory);
+            void WritePayload()
+            {
+                var writer = new CustomBufferWriter<PipeWriter>(buffer);
 
-                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
-                buffer.WriteBigEndian(FrameEnd);
+                var payloadSizeHeader = writer.WriteFrameHeader(FrameType.Method, channelNumber);
 
-                WriteContentHeaderFrame(ref buffer, properties, (ulong)body.Length);
+                writer.Write(Method.Basic.Publish);
+                writer.Write(Reserved);
+                writer.Write(Reserved);
+                writer.WriteShortString(exchange);
+                writer.WriteShortString(routingKey);
+                writer.WriteBits(mandatory);
+
+                writer.Commit();
+                BinaryPrimitives.WriteUInt32BigEndian(payloadSizeHeader, ((uint)writer.BytesCommitted - FrameHeaderSize));
+
+                writer.Write(FrameEnd);
+
+                var body = bodyBytes.Span;
+
+                WriteContentHeaderFrame(ref writer, properties, (ulong)body.Length);
 
                 var framesToWrite = body.Length > 0;
 
@@ -184,45 +243,45 @@ namespace Angora
                         framesToWrite = false;
                     }
 
-                    WriteContentBodyFrame(ref buffer, frame);
+                    WriteContentBodyFrame(ref writer, frame);
                 }
 
-                await buffer.FlushAsync();
-            }
-            finally
-            {
-                socket.ReleaseWriteBuffer();
+                writer.Commit();
             }
         }
 
-        void WriteContentHeaderFrame(ref WritableBuffer buffer, MessageProperties properties, ulong length)
+        void WriteContentHeaderFrame(ref CustomBufferWriter<PipeWriter> writer, MessageProperties properties, ulong length)
         {
-            var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.ContentHeader, channelNumber);
+            var payloadSizeHeader = writer.WriteFrameHeader(FrameType.ContentHeader, channelNumber);
 
-            var bytesWrittenBefore = (uint)buffer.BytesWritten;
+            writer.Commit();
+            var bytesWrittenBefore = (uint)writer.BytesCommitted;
 
-            buffer.WriteBigEndian(ClassId.Basic);
-            buffer.WriteBigEndian(Reserved);
-            buffer.WriteBigEndian(Reserved);
-            buffer.WriteBigEndian(length);
-            buffer.WriteBasicProperties(properties);
+            writer.Write(ClassId.Basic);
+            writer.Write(Reserved);
+            writer.Write(Reserved);
+            writer.Write(length);
+            writer.WriteBasicProperties(properties);
 
-            payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - bytesWrittenBefore);
+            writer.Commit();
+            BinaryPrimitives.WriteUInt32BigEndian(payloadSizeHeader, ((uint)writer.BytesCommitted - bytesWrittenBefore));
 
-            buffer.WriteBigEndian(FrameEnd);
+            writer.Write(FrameEnd);
         }
 
-        void WriteContentBodyFrame(ref WritableBuffer buffer, Span<byte> body)
+        void WriteContentBodyFrame(ref CustomBufferWriter<PipeWriter> writer, Span<byte> body)
         {
-            var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.ContentBody, channelNumber);
+            var payloadSizeHeader = writer.WriteFrameHeader(FrameType.ContentBody, channelNumber);
 
-            var bytesWrittenBefore = (uint)buffer.BytesWritten;
+            writer.Commit();
+            var bytesWrittenBefore = (uint)writer.BytesCommitted;
 
-            buffer.Write(body);
+            writer.Write(body);
 
-            payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - bytesWrittenBefore);
+            writer.Commit();
+            BinaryPrimitives.WriteUInt32BigEndian(payloadSizeHeader, ((uint)writer.BytesCommitted - bytesWrittenBefore));
 
-            buffer.WriteBigEndian(FrameEnd);
+            writer.Write(FrameEnd);
         }
     }
 }
