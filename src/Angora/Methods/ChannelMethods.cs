@@ -1,9 +1,7 @@
-﻿using System;
-using System.Binary;
-using System.Collections.Generic;
+﻿using System.Buffers.Binary;
 using System.IO.Pipelines;
-using System.Text;
 using System.Threading.Tasks;
+
 using static Angora.AmqpConstants;
 
 namespace Angora
@@ -25,20 +23,29 @@ namespace Angora
 
             try
             {
-                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, channelNumber);
-
-                buffer.WriteBigEndian(Method.Channel.Open);
-                buffer.WriteBigEndian(Reserved);
-
-                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
-
-                buffer.WriteBigEndian(FrameEnd);
-
+                WritePayload();
                 await buffer.FlushAsync();
             }
             finally
             {
                 socket.ReleaseWriteBuffer();
+            }
+
+            void WritePayload()
+            {
+                var writer = new CustomBufferWriter<PipeWriter>(buffer);
+
+                var payloadSizeHeader = writer.WriteFrameHeader(FrameType.Method, channelNumber);
+
+                writer.Write(Method.Channel.Open);
+                writer.Write(Reserved);
+
+                writer.Commit();
+                BinaryPrimitives.WriteUInt32BigEndian(payloadSizeHeader, ((uint)writer.BytesCommitted - FrameHeaderSize));
+
+                writer.Write(FrameEnd);
+
+                writer.Commit();
             }
         }
 
@@ -48,23 +55,32 @@ namespace Angora
 
             try
             {
-                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, channelNumber);
-
-                buffer.WriteBigEndian(Method.Channel.Close);
-                buffer.WriteBigEndian(replyCode);
-                buffer.WriteShortString(replyText);
-                buffer.WriteBigEndian(failingClass);
-                buffer.WriteBigEndian(failingMethod);
-
-                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
-
-                buffer.WriteBigEndian(FrameEnd);
-
+                WritePayload();
                 await buffer.FlushAsync();
             }
             finally
             {
                 socket.ReleaseWriteBuffer();
+            }
+
+            void WritePayload()
+            {
+                var writer = new CustomBufferWriter<PipeWriter>(buffer);
+
+                var payloadSizeHeader = writer.WriteFrameHeader(FrameType.Method, channelNumber);
+
+                writer.Write(Method.Channel.Close);
+                writer.Write(replyCode);
+                writer.WriteShortString(replyText);
+                writer.Write(failingClass);
+                writer.Write(failingMethod);
+
+                writer.Commit();
+                BinaryPrimitives.WriteUInt32BigEndian(payloadSizeHeader, ((uint)writer.BytesCommitted - FrameHeaderSize));
+
+                writer.Write(FrameEnd);
+
+                writer.Commit();
             }
         }
 
@@ -74,19 +90,28 @@ namespace Angora
 
             try
             {
-                var payloadSizeHeader = buffer.WriteFrameHeader(FrameType.Method, channelNumber);
-
-                buffer.WriteBigEndian(Method.Channel.CloseOk);
-
-                payloadSizeHeader.WriteBigEndian((uint)buffer.BytesWritten - FrameHeaderSize);
-
-                buffer.WriteBigEndian(FrameEnd);
-
+                WritePayload();
                 await buffer.FlushAsync();
             }
             finally
             {
                 socket.ReleaseWriteBuffer();
+            }
+
+            void WritePayload()
+            {
+                var writer = new CustomBufferWriter<PipeWriter>(buffer);
+
+                var payloadSizeHeader = writer.WriteFrameHeader(FrameType.Method, channelNumber);
+
+                writer.Write(Method.Channel.CloseOk);
+
+                writer.Commit();
+                BinaryPrimitives.WriteUInt32BigEndian(payloadSizeHeader, ((uint)writer.BytesCommitted - FrameHeaderSize));
+
+                writer.Write(FrameEnd);
+
+                writer.Commit();
             }
         }
     }
