@@ -6,7 +6,7 @@ using System.Text;
 
 namespace Angora
 {
-    static class WritableBufferExtensions
+    static class CustomBufferWriterExtensions
     {
         static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
