@@ -7,12 +7,7 @@ namespace Sample
 {
     public class Program
     {
-        public static void Main(string[] args)
-        {
-            MainAsync(args).GetAwaiter().GetResult();
-        }
-
-        public static async Task MainAsync(string[] args)
+        public static async Task Main(string[] args)
         {
             var factory = new ConnectionFactory
             {
@@ -73,7 +68,7 @@ namespace Sample
             Console.ReadKey();
         }
 
-       static async Task PublishAndConsume(Channel channel)
+        static async Task PublishAndConsume(Channel channel)
         {
             await channel.Queue.Declare("test", false, true, false, false, null);
 

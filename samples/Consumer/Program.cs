@@ -6,12 +6,7 @@ namespace Consumer
 {
     class Program
     {
-        static void Main(string[] args)
-        {
-            MainAsync().GetAwaiter().GetResult();
-        }
-
-        static async Task MainAsync()
+        static async Task Main()
         {
             var factory = new ConnectionFactory
             {
@@ -49,9 +44,9 @@ namespace Consumer
             this.basic = basic;
         }
 
-        public async Task HandleIncomingMessage(Basic.DeliverState messageState)
+        public Task HandleIncomingMessage(Basic.DeliverState messageState)
         {
-            await basic.Ack(messageState.DeliveryTag, false);
+            return basic.Ack(messageState.DeliveryTag, false);
         }
     }
 }

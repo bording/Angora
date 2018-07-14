@@ -9,12 +9,7 @@ namespace Producer
     {
         const int numberOfMessages = 1_000_000;
 
-        static void Main(string[] args)
-        {
-            MainAsync().GetAwaiter().GetResult();
-        }
-
-        static async Task MainAsync()
+        static async Task Main()
         {
             var factory = new ConnectionFactory
             {
