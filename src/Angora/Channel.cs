@@ -1,6 +1,5 @@
 ﻿using System;
-using System.Binary;
-using System.IO.Pipelines;
+using System.Buffers;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -26,10 +25,10 @@ namespace Angora
         bool replyIsExpected;
         uint expectedReplyMethod;
         object replyTaskCompletionSource;
-        Action<object, ReadableBuffer, Exception> replyHandler;
+        Action<object, ReadOnlySequence<byte>, Exception> replyHandler;
 
-        Action<object, ReadableBuffer, Exception> handle_OpenOk;
-        Action<object, ReadableBuffer, Exception> handle_CloseOk;
+        Action<object, ReadOnlySequence<byte>, Exception> handle_OpenOk;
+        Action<object, ReadOnlySequence<byte>, Exception> handle_CloseOk;
 
         internal Channel(Socket socket, uint maxContentBodySize, ushort channelNumber)
         {
@@ -47,7 +46,7 @@ namespace Angora
             handle_CloseOk = Handle_CloseOk;
         }
 
-        async Task SetExpectedReplyMethod(uint method, object taskCompletionSource, Action<object, ReadableBuffer, Exception> replyHandler)
+        async Task SetExpectedReplyMethod(uint method, object taskCompletionSource, Action<object, ReadOnlySequence<byte>, Exception> replyHandler)
         {
             await pendingReply.WaitAsync();
 
@@ -66,7 +65,7 @@ namespace Angora
             }
         }
 
-        internal async Task HandleIncomingMethod(uint method, ReadableBuffer arguments)
+        internal async Task HandleIncomingMethod(uint method, ReadOnlySequence<byte> arguments)
         {
             switch (method)
             {
@@ -82,7 +81,7 @@ namespace Angora
             }
         }
 
-        void HandleReplyMethod(uint method, ReadableBuffer arguments)
+        void HandleReplyMethod(uint method, ReadOnlySequence<byte> arguments)
         {
             if (!replyIsExpected)
             {
@@ -103,7 +102,7 @@ namespace Angora
             pendingReply.Release();
         }
 
-        internal Task HandleIncomingContent(byte frameType, ReadableBuffer payload)
+        internal Task HandleIncomingContent(byte frameType, ReadOnlySequence<byte> payload)
         {
             if(frameType == FrameType.ContentHeader)
             {
@@ -128,7 +127,7 @@ namespace Angora
             await openOk.Task;
         }
 
-        void Handle_OpenOk(object tcs, ReadableBuffer arguments, Exception exception)
+        void Handle_OpenOk(object tcs, ReadOnlySequence<byte> arguments, Exception exception)
         {
             var openOk = (TaskCompletionSource<bool>)tcs;
 
@@ -155,7 +154,7 @@ namespace Angora
             await closeOk.Task;
         }
 
-        void Handle_CloseOk(object tcs, ReadableBuffer arguments, Exception exception)
+        void Handle_CloseOk(object tcs, ReadOnlySequence<byte> arguments, Exception exception)
         {
             var closeOk = (TaskCompletionSource<bool>)tcs;
 
@@ -170,7 +169,7 @@ namespace Angora
             }
         }
 
-        async Task Handle_Close(ReadableBuffer arguments)
+        async Task Handle_Close(ReadOnlySequence<byte> arguments)
         {
             IsOpen = false;
 
@@ -191,7 +190,7 @@ namespace Angora
 
                 var exception = new Exception($"Channel Closed: {replyCode} {replyText}. ClassId: {classId} MethodId: {methodId}");
 
-                replyHandler(replyTaskCompletionSource, default(ReadableBuffer), exception);
+                replyHandler(replyTaskCompletionSource, default, exception);
 
                 replyIsExpected = false;
                 pendingReply.Release();
@@ -209,7 +208,7 @@ namespace Angora
 
                 var exception = new Exception($"Connection Closed: {replyCode} {replyText}. ClassId: {classId} MethodId: {methodId}");
 
-                replyHandler(replyTaskCompletionSource, default(ReadableBuffer), exception);
+                replyHandler(replyTaskCompletionSource, default, exception);
 
                 replyIsExpected = false;
                 pendingReply.Release();

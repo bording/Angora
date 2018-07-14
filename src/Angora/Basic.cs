@@ -1,6 +1,6 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
-using System.IO.Pipelines;
 using System.Threading.Tasks;
 
 using static Angora.AmqpConstants;
@@ -10,17 +10,17 @@ namespace Angora
     public class Basic
     {
         readonly BasicMethods methods;
-        readonly Func<uint, object, Action<object, ReadableBuffer, Exception>, Task> SetExpectedReplyMethod;
+        readonly Func<uint, object, Action<object, ReadOnlySequence<byte>, Exception>, Task> SetExpectedReplyMethod;
         readonly Action ThrowIfClosed;
 
-        readonly Action<object, ReadableBuffer, Exception> handle_QosOk;
-        readonly Action<object, ReadableBuffer, Exception> handle_ConsumeOk;
-        readonly Action<object, ReadableBuffer, Exception> handle_CancelOk;
-        readonly Action<object, ReadableBuffer, Exception> handle_RecoverOk;
+        readonly Action<object, ReadOnlySequence<byte>, Exception> handle_QosOk;
+        readonly Action<object, ReadOnlySequence<byte>, Exception> handle_ConsumeOk;
+        readonly Action<object, ReadOnlySequence<byte>, Exception> handle_CancelOk;
+        readonly Action<object, ReadOnlySequence<byte>, Exception> handle_RecoverOk;
 
         Dictionary<string, Func<DeliverState, Task>> consumers;
 
-        internal Basic(Socket socket, ushort channelNumber, uint maxContentBodySize, Func<uint, object, Action<object, ReadableBuffer, Exception>, Task> setExpectedReplyMethod, Action throwIfClosed)
+        internal Basic(Socket socket, ushort channelNumber, uint maxContentBodySize, Func<uint, object, Action<object, ReadOnlySequence<byte>, Exception>, Task> setExpectedReplyMethod, Action throwIfClosed)
         {
             methods = new BasicMethods(socket, channelNumber, maxContentBodySize);
             SetExpectedReplyMethod = setExpectedReplyMethod;
@@ -44,7 +44,7 @@ namespace Angora
             await qosOk.Task;
         }
 
-        void Handle_QosOk(object tcs, ReadableBuffer arguments, Exception exception)
+        void Handle_QosOk(object tcs, ReadOnlySequence<byte> arguments, Exception exception)
         {
             var qosOk = (TaskCompletionSource<bool>)tcs;
 
@@ -79,7 +79,7 @@ namespace Angora
             return await consumeOk.Task;
         }
 
-        void Handle_ConsumeOk(object tcs, ReadableBuffer arguments, Exception exception)
+        void Handle_ConsumeOk(object tcs, ReadOnlySequence<byte> arguments, Exception exception)
         {
             var consumeOk = (TaskCompletionSource<string>)tcs;
 
@@ -111,7 +111,7 @@ namespace Angora
             return await cancelOk.Task;
         }
 
-        void Handle_CancelOk(object tcs, ReadableBuffer arguments, Exception exception)
+        void Handle_CancelOk(object tcs, ReadOnlySequence<byte> arguments, Exception exception)
         {
             var cancelOk = (TaskCompletionSource<string>)tcs;
 
@@ -138,7 +138,7 @@ namespace Angora
             await recoverOk.Task;
         }
 
-        void Handle_RecoverOk(object tcs, ReadableBuffer arguments, Exception exception)
+        void Handle_RecoverOk(object tcs, ReadOnlySequence<byte> arguments, Exception exception)
         {
             var recoverOk = (TaskCompletionSource<bool>)tcs;
 
@@ -186,7 +186,7 @@ namespace Angora
 
         DeliverState pendingDelivery;
 
-        internal Task Handle_Deliver(ReadableBuffer arguments)
+        internal Task Handle_Deliver(ReadOnlySequence<byte> arguments)
         {
             pendingDelivery = new DeliverState();
             ReadCursor cursor;
@@ -209,7 +209,7 @@ namespace Angora
             return Task.CompletedTask;
         }
 
-        internal async Task Handle_ContentHeader(ReadableBuffer payload)
+        internal async Task Handle_ContentHeader(ReadOnlySequence<byte> payload)
         {
             var classId = payload.ReadBigEndian<ushort>();
             payload = payload.Slice(sizeof(ushort));
@@ -231,7 +231,7 @@ namespace Angora
             }
         }
 
-        internal async Task Handle_ContentBody(ReadableBuffer payload)
+        internal async Task Handle_ContentBody(ReadOnlySequence<byte> payload)
         {
             pendingDelivery.Body = payload.ToArray();
 

@@ -168,7 +168,7 @@ namespace Angora
                 }
 
                 var payload = buffer.Slice(reader.Position, payloadSize);
-                reader.Advance(payloadSize);
+                reader.Advance((int)payloadSize); //cast ok?
 
                 var frameEnd = reader.ReadByte();
 

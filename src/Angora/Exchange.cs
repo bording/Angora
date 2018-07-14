@@ -1,6 +1,6 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
-using System.IO.Pipelines;
 using System.Threading.Tasks;
 
 using static Angora.AmqpConstants;
@@ -10,15 +10,15 @@ namespace Angora
     public class Exchange
     {
         readonly ExchangeMethods methods;
-        readonly Func<uint, object, Action<object, ReadableBuffer, Exception>, Task> SetExpectedReplyMethod;
+        readonly Func<uint, object, Action<object, ReadOnlySequence<byte>, Exception>, Task> SetExpectedReplyMethod;
         readonly Action ThrowIfClosed;
 
-        readonly Action<object, ReadableBuffer, Exception> handle_DeclareOk;
-        readonly Action<object, ReadableBuffer, Exception> handle_DeleteOk;
-        readonly Action<object, ReadableBuffer, Exception> handle_BindOk;
-        readonly Action<object, ReadableBuffer, Exception> handle_UnbindOk;
+        readonly Action<object, ReadOnlySequence<byte>, Exception> handle_DeclareOk;
+        readonly Action<object, ReadOnlySequence<byte>, Exception> handle_DeleteOk;
+        readonly Action<object, ReadOnlySequence<byte>, Exception> handle_BindOk;
+        readonly Action<object, ReadOnlySequence<byte>, Exception> handle_UnbindOk;
 
-        internal Exchange(Socket socket, ushort channelNumber, Func<uint, object, Action<object, ReadableBuffer, Exception>, Task> setExpectedReplyMethod, Action throwIfClosed)
+        internal Exchange(Socket socket, ushort channelNumber, Func<uint, object, Action<object, ReadOnlySequence<byte>, Exception>, Task> setExpectedReplyMethod, Action throwIfClosed)
         {
             methods = new ExchangeMethods(socket, channelNumber);
             SetExpectedReplyMethod = setExpectedReplyMethod;
@@ -42,7 +42,7 @@ namespace Angora
             await declareOk.Task;
         }
 
-        void Handle_DeclareOk(object tcs, ReadableBuffer arguments, Exception exception)
+        void Handle_DeclareOk(object tcs, ReadOnlySequence<byte> arguments, Exception exception)
         {
             var declareOk = (TaskCompletionSource<bool>)tcs;
 
@@ -68,7 +68,7 @@ namespace Angora
             await deleteOk.Task;
         }
 
-        void Handle_DeleteOk(object tcs, ReadableBuffer arguments, Exception exception)
+        void Handle_DeleteOk(object tcs, ReadOnlySequence<byte> arguments, Exception exception)
         {
             var deleteOk = (TaskCompletionSource<bool>)tcs;
 
@@ -94,7 +94,7 @@ namespace Angora
             await bindOk.Task;
         }
 
-        void Handle_BindOk(object tcs, ReadableBuffer arguments, Exception exception)
+        void Handle_BindOk(object tcs, ReadOnlySequence<byte> arguments, Exception exception)
         {
             var bindOk = (TaskCompletionSource<bool>)tcs;
 
@@ -120,7 +120,7 @@ namespace Angora
             await unbindOk.Task;
         }
 
-        void Handle_UnbindOk(object tcs, ReadableBuffer arguments, Exception exception)
+        void Handle_UnbindOk(object tcs, ReadOnlySequence<byte> arguments, Exception exception)
         {
             var unbindOk = (TaskCompletionSource<bool>)tcs;
 
