@@ -89,11 +89,13 @@ namespace Angora
             }
             else
             {
-                var consumerTag = arguments.ReadShortString();
+                var reader = new CustomBufferReader(arguments);
 
-                consumers.Add(consumerTag.value, pendingConsumer);
+                var consumerTag = reader.ReadShortString();
 
-                consumeOk.SetResult(consumerTag.value);
+                consumers.Add(consumerTag, pendingConsumer);
+
+                consumeOk.SetResult(consumerTag);
             }
 
             pendingConsumer = null;
@@ -121,8 +123,9 @@ namespace Angora
             }
             else
             {
-                var consumerTag = arguments.ReadShortString();
-                cancelOk.SetResult(consumerTag.value);
+                var reader = new CustomBufferReader(arguments);
+                var consumerTag = reader.ReadShortString();
+                cancelOk.SetResult(consumerTag);
             }
         }
 
@@ -152,18 +155,18 @@ namespace Angora
             }
         }
 
-        public async Task Ack(ulong deliveryTag, bool multiple)
+        public Task Ack(ulong deliveryTag, bool multiple)
         {
             ThrowIfClosed();
 
-            await methods.Send_Ack(deliveryTag, multiple);
+            return methods.Send_Ack(deliveryTag, multiple);
         }
 
-        public async Task Publish(string exchange, string routingKey, bool mandatory, MessageProperties properties, Span<byte> body)
+        public Task Publish(string exchange, string routingKey, bool mandatory, MessageProperties properties, Memory<byte> body)
         {
             ThrowIfClosed();
 
-            await methods.Send_Publish(exchange, routingKey, mandatory, properties, body);
+            return methods.Send_Publish(exchange, routingKey, mandatory, properties, body);
         }
 
         public class DeliverState
@@ -188,41 +191,37 @@ namespace Angora
 
         internal Task Handle_Deliver(ReadOnlySequence<byte> arguments)
         {
+            var reader = new CustomBufferReader(arguments);
+
             pendingDelivery = new DeliverState();
-            ReadCursor cursor;
 
-            (pendingDelivery.ConsumerTag, cursor) = arguments.ReadShortString();
-            arguments = arguments.Slice(cursor);
-
-            pendingDelivery.DeliveryTag = arguments.ReadBigEndian<ulong>();
-            arguments = arguments.Slice(sizeof(ulong));
-
-            pendingDelivery.Redelivered = Convert.ToBoolean(arguments.ReadBigEndian<byte>());
-            arguments.Slice(sizeof(byte));
-
-            (pendingDelivery.Exchange, cursor) = arguments.ReadShortString();
-            arguments = arguments.Slice(cursor);
-
-            (pendingDelivery.RoutingKey, cursor) = arguments.ReadShortString();
-            arguments = arguments.Slice(cursor);
+            pendingDelivery.ConsumerTag = reader.ReadShortString();
+            pendingDelivery.DeliveryTag = reader.ReadUInt64();
+            pendingDelivery.Redelivered = Convert.ToBoolean(reader.ReadByte());
+            pendingDelivery.Exchange = reader.ReadShortString();
+            pendingDelivery.RoutingKey = reader.ReadShortString();
 
             return Task.CompletedTask;
         }
 
         internal async Task Handle_ContentHeader(ReadOnlySequence<byte> payload)
         {
-            var classId = payload.ReadBigEndian<ushort>();
-            payload = payload.Slice(sizeof(ushort));
+            ulong Read()
+            {
+                var reader = new CustomBufferReader(payload);
 
-            var weight = payload.ReadBigEndian<ushort>();
-            payload = payload.Slice(sizeof(ushort));
+                var classId = reader.ReadUInt16();
+                var weight = reader.ReadUInt16();
+                var bodySize = reader.ReadUInt64();
 
-            var bodySize = payload.ReadBigEndian<ulong>();
-            payload = payload.Slice(sizeof(ulong));
+                pendingDelivery.Properties = reader.ReadBasicProperties();
 
-            pendingDelivery.Properties = payload.ReadBasicProperties();
+                return bodySize;
+            }
 
-            if (bodySize == 0)
+            var size = Read();
+
+            if (size == 0)
             {
                 pendingDelivery.Body = new byte[0];
 

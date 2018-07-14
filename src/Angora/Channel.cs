@@ -177,13 +177,17 @@ namespace Angora
 
             if (replyIsExpected)
             {
-                var replyCode = arguments.ReadBigEndian<ushort>();
-                arguments = arguments.Slice(sizeof(ushort));
+                SendReply();
+            }
 
-                var (replyText, cursor) = arguments.ReadShortString();
-                arguments = arguments.Slice(cursor);
+            void SendReply()
+            {
+                var reader = new CustomBufferReader(arguments);
 
-                var method = arguments.ReadBigEndian<uint>();
+                var replyCode = reader.ReadUInt16();
+                var replyText = reader.ReadShortString();
+
+                var method = reader.ReadUInt32();
 
                 var classId = method >> 16;
                 var methodId = method << 16 >> 16;

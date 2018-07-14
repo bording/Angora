@@ -61,16 +61,13 @@ namespace Angora
             }
             else
             {
+                var reader = new CustomBufferReader(arguments);
+
                 DeclareResult result;
-                ReadCursor cursor;
 
-                (result.QueueName, cursor) = arguments.ReadShortString();
-                arguments = arguments.Slice(cursor);
-
-                result.MessageCount = arguments.ReadBigEndian<uint>();
-                arguments = arguments.Slice(sizeof(uint));
-
-                result.ConsumerCount = arguments.ReadBigEndian<uint>();
+                result.QueueName = reader.ReadShortString();
+                result.MessageCount = reader.ReadUInt32();
+                result.ConsumerCount = reader.ReadUInt32();
 
                 declareOk.SetResult(result);
             }
@@ -150,7 +147,8 @@ namespace Angora
             }
             else
             {
-                var messageCount = arguments.ReadBigEndian<uint>();
+                var reader = new CustomBufferReader(arguments);
+                var messageCount = reader.ReadUInt32();
                 purgeOk.SetResult(messageCount);
             }
         }
@@ -177,7 +175,8 @@ namespace Angora
             }
             else
             {
-                var messageCount = arguments.ReadBigEndian<uint>();
+                var reader = new CustomBufferReader(arguments);
+                var messageCount = reader.ReadUInt32();
                 deleteOk.SetResult(messageCount);
             }
         }

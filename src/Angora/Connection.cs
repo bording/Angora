@@ -181,11 +181,11 @@ namespace Angora
                 switch (frameType)
                 {
                     case FrameType.Method:
-                        await HandleIncomingMethodFrame(channelNumber, payload);
+                        HandleIncomingMethodFrame(channelNumber, payload).GetAwaiter().GetResult(); // TODO fix this!
                         break;
                     case FrameType.ContentHeader:
                     case FrameType.ContentBody:
-                        await HandleIncomingContent(channelNumber, frameType, payload);
+                        HandleIncomingContent(channelNumber, frameType, payload).GetAwaiter().GetResult(); // TODO fix this!
                         break;
                 }
 
@@ -213,9 +213,15 @@ namespace Angora
 
         async Task HandleIncomingMethodFrame(ushort channelNumber, ReadOnlySequence<byte> payload)
         {
-            var method = payload.ReadBigEndian<uint>();
-            payload = payload.Slice(sizeof(uint));
+            uint Read()
+            {
+                var reader = new CustomBufferReader(payload);
 
+                var method_internal = reader.ReadUInt32();
+                return method_internal;
+            }
+
+            var method = Read();
             var classId = method >> 16;
 
             if (classId == ClassId.Connection) //TODO validate channel 0
