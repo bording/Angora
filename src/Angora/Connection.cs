@@ -218,6 +218,8 @@ namespace Angora
                 var reader = new CustomBufferReader(payload);
 
                 var method_internal = reader.ReadUInt32();
+                payload = payload.Slice(reader.Position);
+
                 return method_internal;
             }
 
