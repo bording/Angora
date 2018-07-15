@@ -37,7 +37,7 @@ namespace Consumer
 
     class MesssageConsumer
     {
-        Basic basic;
+        readonly Basic basic;
 
         public MesssageConsumer(Basic basic)
         {

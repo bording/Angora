@@ -27,8 +27,8 @@ namespace Angora
         object replyTaskCompletionSource;
         Action<object, ReadOnlySequence<byte>, Exception> replyHandler;
 
-        Action<object, ReadOnlySequence<byte>, Exception> handle_OpenOk;
-        Action<object, ReadOnlySequence<byte>, Exception> handle_CloseOk;
+        readonly Action<object, ReadOnlySequence<byte>, Exception> handle_OpenOk;
+        readonly Action<object, ReadOnlySequence<byte>, Exception> handle_CloseOk;
 
         internal Channel(Socket socket, uint maxContentBodySize, ushort channelNumber)
         {

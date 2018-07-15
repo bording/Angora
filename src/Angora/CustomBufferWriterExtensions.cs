@@ -281,7 +281,7 @@ namespace Angora
                 writer.WriteShortString(properties.MessageId);
             }
 
-            if (properties.Timestamp != default(DateTime))
+            if (properties.Timestamp != default)
             {
                 flags |= 1 << 6;
                 writer.WriteTimestamp(properties.Timestamp);

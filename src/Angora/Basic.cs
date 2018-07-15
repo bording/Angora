@@ -193,13 +193,14 @@ namespace Angora
         {
             var reader = new CustomBufferReader(arguments);
 
-            pendingDelivery = new DeliverState();
-
-            pendingDelivery.ConsumerTag = reader.ReadShortString();
-            pendingDelivery.DeliveryTag = reader.ReadUInt64();
-            pendingDelivery.Redelivered = Convert.ToBoolean(reader.ReadByte());
-            pendingDelivery.Exchange = reader.ReadShortString();
-            pendingDelivery.RoutingKey = reader.ReadShortString();
+            pendingDelivery = new DeliverState
+            {
+                ConsumerTag = reader.ReadShortString(),
+                DeliveryTag = reader.ReadUInt64(),
+                Redelivered = Convert.ToBoolean(reader.ReadByte()),
+                Exchange = reader.ReadShortString(),
+                RoutingKey = reader.ReadShortString()
+            };
 
             return Task.CompletedTask;
         }
