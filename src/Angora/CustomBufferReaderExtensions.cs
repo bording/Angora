@@ -11,15 +11,11 @@ namespace Angora
             var result = new List<object>();
 
             var arrayLength = reader.ReadUInt32();
-            var buffer = reader.CurrentSegment.Slice(sizeof(uint), (int)arrayLength); //start is wrong?
+            var initialBytesConsumed = reader.ConsumedBytes;
 
-            while (!buffer.IsEmpty)
+            while (reader.ConsumedBytes < arrayLength + initialBytesConsumed)
             {
-                var before = reader.ConsumedBytes;
-
                 var fieldValue = reader.ReadFieldValue();
-
-                buffer = buffer.Slice(reader.ConsumedBytes - before);
 
                 result.Add(fieldValue);
             }
@@ -32,16 +28,12 @@ namespace Angora
             var result = new Dictionary<string, object>();
 
             var tableLength = reader.ReadUInt32();
-            var buffer = reader.CurrentSegment.Slice(sizeof(uint), (int)tableLength); //start is wrong?
+            var initialBytesConsumed = reader.ConsumedBytes;
 
-            while (!buffer.IsEmpty)
+            while (reader.ConsumedBytes < tableLength + initialBytesConsumed)
             {
-                var before = reader.ConsumedBytes;
-
                 var fieldName = reader.ReadShortString();
                 var fieldValue = reader.ReadFieldValue();
-
-                buffer = buffer.Slice(reader.ConsumedBytes - before);
 
                 result.Add(fieldName, fieldValue);
             }
@@ -97,8 +89,7 @@ namespace Angora
         public static string ReadShortString(this ref CustomBufferReader reader)
         {
             var length = reader.ReadByte();
-            var bytes = reader.CurrentSegment.Slice(sizeof(byte), length); //start is wrong?
-            reader.Advance(bytes.Length);
+            var bytes = reader.ReadBytes(length);
 
             return Encoding.UTF8.GetString(bytes.ToArray());
         }
@@ -106,8 +97,7 @@ namespace Angora
         public static string ReadLongString(this ref CustomBufferReader reader)
         {
             var length = reader.ReadUInt32();
-            var bytes = reader.CurrentSegment.Slice(sizeof(uint), (int)length); //start is wrong?
-            reader.Advance(bytes.Length);
+            var bytes = reader.ReadBytes((int)length); // TODO check cast
 
             return Encoding.UTF8.GetString(bytes.ToArray());
         }
@@ -115,8 +105,7 @@ namespace Angora
         static byte[] ReadBytes(this ref CustomBufferReader reader)
         {
             var length = reader.ReadUInt32();
-            var bytes = reader.CurrentSegment.Slice(sizeof(uint), (int)length); //start is wrong?
-            reader.Advance(bytes.Length);
+            var bytes = reader.ReadBytes((int)length); // TODO check cast
 
             return bytes.ToArray();
         }

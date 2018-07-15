@@ -128,6 +128,27 @@ namespace Angora
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ReadOnlySpan<byte> ReadBytes(int length)
+        {
+            if (_end)
+            {
+                return default; // TODO change this to throw instead?
+            }
+
+            var value = _currentSpan.Slice(_index, length);
+
+            _index += length;
+            _consumedBytes += length;
+
+            if (_index >= _currentSpan.Length)
+            {
+                MoveNext();
+            }
+
+            return value;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public short ReadInt16()
         {
             if (_end)
@@ -135,7 +156,7 @@ namespace Angora
                 return 0; // TODO change this to throw instead?
             }
 
-            if (BinaryPrimitives.TryReadInt16BigEndian(_currentSpan, out var value))
+            if (BinaryPrimitives.TryReadInt16BigEndian(_currentSpan.Slice(_index), out var value))
             {
                 _index += sizeof(short);
                 _consumedBytes += sizeof(short);
@@ -161,7 +182,7 @@ namespace Angora
                 return 0; // TODO change this to throw instead?
             }
 
-            if (BinaryPrimitives.TryReadUInt16BigEndian(_currentSpan, out var value))
+            if (BinaryPrimitives.TryReadUInt16BigEndian(_currentSpan.Slice(_index), out var value))
             {
                 _index += sizeof(ushort);
                 _consumedBytes += sizeof(ushort);
@@ -187,7 +208,7 @@ namespace Angora
                 return 0; // TODO change this to throw instead?
             }
 
-            if (BinaryPrimitives.TryReadInt32BigEndian(_currentSpan, out var value))
+            if (BinaryPrimitives.TryReadInt32BigEndian(_currentSpan.Slice(_index), out var value))
             {
                 _index += sizeof(int);
                 _consumedBytes += sizeof(int);
@@ -213,7 +234,7 @@ namespace Angora
                 return 0; // TODO change this to throw instead?
             }
 
-            if (BinaryPrimitives.TryReadUInt32BigEndian(_currentSpan, out var value))
+            if (BinaryPrimitives.TryReadUInt32BigEndian(_currentSpan.Slice(_index), out var value))
             {
                 _index += sizeof(uint);
                 _consumedBytes += sizeof(uint);
@@ -239,7 +260,7 @@ namespace Angora
                 return 0; // TODO change this to throw instead?
             }
 
-            if (BinaryPrimitives.TryReadInt64BigEndian(_currentSpan, out var value))
+            if (BinaryPrimitives.TryReadInt64BigEndian(_currentSpan.Slice(_index), out var value))
             {
                 _index += sizeof(long);
                 _consumedBytes += sizeof(long);
@@ -265,7 +286,7 @@ namespace Angora
                 return 0; // TODO change this to throw instead?
             }
 
-            if (BinaryPrimitives.TryReadUInt64BigEndian(_currentSpan, out var value))
+            if (BinaryPrimitives.TryReadUInt64BigEndian(_currentSpan.Slice(_index), out var value))
             {
                 _index += sizeof(ulong);
                 _consumedBytes += sizeof(ulong);
