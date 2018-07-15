@@ -156,7 +156,7 @@ namespace Angora
                     break;
                 }
 
-                var frameType = (byte)reader.Read();
+                var frameType = reader.ReadByte();
                 var channelNumber = reader.ReadUInt16();
                 var payloadSize = reader.ReadUInt32();
 
