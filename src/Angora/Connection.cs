@@ -156,6 +156,8 @@ namespace Angora
                     break;
                 }
 
+                var preFrameHeaderPositon = reader.Position;
+
                 var frameType = reader.ReadByte();
                 var channelNumber = reader.ReadUInt16();
                 var payloadSize = reader.ReadUInt32();
@@ -164,7 +166,7 @@ namespace Angora
 
                 if (buffer.Length < payloadSize + 1)
                 {
-                    break;
+                    return preFrameHeaderPositon;
                 }
 
                 var payload = buffer.Slice(reader.Position, payloadSize);
