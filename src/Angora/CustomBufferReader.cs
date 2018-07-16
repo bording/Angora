@@ -135,6 +135,18 @@ namespace Angora
                 return default; // TODO change this to throw instead?
             }
 
+            if (_index + length > _currentSpan.Length)
+            {
+                var bytes = new byte[length];
+
+                for (int i = 0; i < length; i++)
+                {
+                    bytes[i] = ReadByte();
+                }
+
+                return bytes;
+            }
+
             var value = _currentSpan.Slice(_index, length);
 
             _index += length;
@@ -151,25 +163,14 @@ namespace Angora
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public short ReadInt16()
         {
-            if (_end)
+            Span<byte> bytes = stackalloc byte[sizeof(short)];
+
+            for (int i = 0; i < sizeof(short); i++)
             {
-                return 0; // TODO change this to throw instead?
+                bytes[i] = ReadByte();
             }
 
-            if (BinaryPrimitives.TryReadInt16BigEndian(_currentSpan.Slice(_index), out var value))
-            {
-                _index += sizeof(short);
-                _consumedBytes += sizeof(short);
-
-                if (_index >= _currentSpan.Length)
-                {
-                    MoveNext();
-                }
-            }
-            else
-            {
-                value = 0; //TODO figure out what to actually do here
-            }
+            BinaryPrimitives.TryReadInt16BigEndian(bytes, out var value);
 
             return value;
         }
@@ -177,25 +178,14 @@ namespace Angora
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ushort ReadUInt16()
         {
-            if (_end)
+            Span<byte> bytes = stackalloc byte[sizeof(ushort)];
+
+            for (int i = 0; i < sizeof(ushort); i++)
             {
-                return 0; // TODO change this to throw instead?
+                bytes[i] = ReadByte();
             }
 
-            if (BinaryPrimitives.TryReadUInt16BigEndian(_currentSpan.Slice(_index), out var value))
-            {
-                _index += sizeof(ushort);
-                _consumedBytes += sizeof(ushort);
-
-                if (_index >= _currentSpan.Length)
-                {
-                    MoveNext();
-                }
-            }
-            else
-            {
-                value = 0; //TODO figure out what to actually do here
-            }
+            BinaryPrimitives.TryReadUInt16BigEndian(bytes, out var value);
 
             return value;
         }
@@ -203,25 +193,14 @@ namespace Angora
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int ReadInt32()
         {
-            if (_end)
+            Span<byte> bytes = stackalloc byte[sizeof(int)];
+
+            for (int i = 0; i < sizeof(int); i++)
             {
-                return 0; // TODO change this to throw instead?
+                bytes[i] = ReadByte();
             }
 
-            if (BinaryPrimitives.TryReadInt32BigEndian(_currentSpan.Slice(_index), out var value))
-            {
-                _index += sizeof(int);
-                _consumedBytes += sizeof(int);
-
-                if (_index >= _currentSpan.Length)
-                {
-                    MoveNext();
-                }
-            }
-            else
-            {
-                value = 0; //TODO figure out what to actually do here
-            }
+            BinaryPrimitives.TryReadInt32BigEndian(bytes, out var value);
 
             return value;
         }
@@ -229,25 +208,14 @@ namespace Angora
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public uint ReadUInt32()
         {
-            if (_end)
+            Span<byte> bytes = stackalloc byte[sizeof(uint)];
+
+            for (int i = 0; i < sizeof(uint); i++)
             {
-                return 0; // TODO change this to throw instead?
+                bytes[i] = ReadByte();
             }
 
-            if (BinaryPrimitives.TryReadUInt32BigEndian(_currentSpan.Slice(_index), out var value))
-            {
-                _index += sizeof(uint);
-                _consumedBytes += sizeof(uint);
-
-                if (_index >= _currentSpan.Length)
-                {
-                    MoveNext();
-                }
-            }
-            else
-            {
-                value = 0; //TODO figure out what to actually do here
-            }
+            BinaryPrimitives.TryReadUInt32BigEndian(bytes, out var value);
 
             return value;
         }
@@ -255,25 +223,14 @@ namespace Angora
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public long ReadInt64()
         {
-            if (_end)
+            Span<byte> bytes = stackalloc byte[sizeof(long)];
+
+            for (int i = 0; i < sizeof(long); i++)
             {
-                return 0; // TODO change this to throw instead?
+                bytes[i] = ReadByte();
             }
 
-            if (BinaryPrimitives.TryReadInt64BigEndian(_currentSpan.Slice(_index), out var value))
-            {
-                _index += sizeof(long);
-                _consumedBytes += sizeof(long);
-
-                if (_index >= _currentSpan.Length)
-                {
-                    MoveNext();
-                }
-            }
-            else
-            {
-                value = 0; //TODO figure out what to actually do here
-            }
+            BinaryPrimitives.TryReadInt64BigEndian(bytes, out var value);
 
             return value;
         }
@@ -281,25 +238,14 @@ namespace Angora
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ulong ReadUInt64()
         {
-            if (_end)
+            Span<byte> bytes = stackalloc byte[sizeof(ulong)];
+
+            for (int i = 0; i < sizeof(ulong); i++)
             {
-                return 0; // TODO change this to throw instead?
+                bytes[i] = ReadByte();
             }
 
-            if (BinaryPrimitives.TryReadUInt64BigEndian(_currentSpan.Slice(_index), out var value))
-            {
-                _index += sizeof(ulong);
-                _consumedBytes += sizeof(ulong);
-
-                if (_index >= _currentSpan.Length)
-                {
-                    MoveNext();
-                }
-            }
-            else
-            {
-                value = 0; //TODO figure out what to actually do here
-            }
+            BinaryPrimitives.TryReadUInt64BigEndian(bytes, out var value);
 
             return value;
         }
