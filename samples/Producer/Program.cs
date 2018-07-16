@@ -38,7 +38,7 @@ namespace Producer
                     }
                 };
 
-                await channel.Basic.Publish("", "test", true, properties, System.Text.Encoding.UTF8.GetBytes("Message Payload"));
+                await channel.Basic.Publish("", "test", true, properties, System.Text.Encoding.UTF8.GetBytes($"Message Payload {i}"));
             }
 
             await channel.Close();
